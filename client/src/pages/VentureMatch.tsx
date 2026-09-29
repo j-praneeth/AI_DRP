@@ -1,0 +1,258 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { ArrowLeft } from 'lucide-react';
+import { LanguageToggle } from '@/components/ui/LanguageToggle';
+import { Layout } from '@/components/layout/Layout';
+import { Button } from '@/components/ui/Button';
+import { VentureMatchCard } from '@/components/venture-match/VentureMatchCard';
+import {
+  VentureMatchHelpBubble,
+  VentureMatchHelpTrigger,
+} from '@/components/venture-match/VentureMatchHelpBubble';
+import { VentureMatchResults } from '@/components/venture-match/VentureMatchResults';
+import { VentureMatchStepExclusions } from '@/components/venture-match/VentureMatchStepExclusions';
+import {
+  getVisibleQuestions,
+  pruneInvisibleAnswers,
+  STORAGE_KEY,
+  scopedVentureMatchKey,
+} from '@/lib/ventureMatch/questions';
+import { evaluate, excludedSchemes, remainingCount } from '@/lib/ventureMatch/evaluate';
+import { saveHandoff } from '@/lib/ventureMatch/mapToDpr';
+import { OWNER_EXCLUSIVE_TAGS, OwnerTag, QuestionId, VentureMatchAnswers } from '@/lib/ventureMatch/types';
+import { GuardianNotice } from '@/components/privacy/GuardianNotice';
+import { useAuthStore } from '@/store/authStore';
+
+function isExclusiveOwner(id: string): boolean {
+  return OWNER_EXCLUSIVE_TAGS.includes(id as OwnerTag);
+}
+
+interface SavedProgress {
+  answers: VentureMatchAnswers;
+  step: number;
+  done?: boolean;
+}
+
+export const VentureMatch: React.FC = () => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const userId = useAuthStore((s) => s.user?.userId);
+  const progressKey = scopedVentureMatchKey(STORAGE_KEY, userId);
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<VentureMatchAnswers>({});
+  const [done, setDone] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    setHydrated(false);
+    setAnswers({});
+    setStep(0);
+    setDone(false);
+    const raw = localStorage.getItem(progressKey);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as SavedProgress;
+        const pruned = pruneInvisibleAnswers(parsed.answers || {});
+        setAnswers(pruned);
+        setStep(parsed.step || 0);
+        setDone(!!parsed.done);
+      } catch {
+        /* ignore */
+      }
+    }
+    // Old shared key leaked answers across accounts on the same browser — remove it
+    localStorage.removeItem(STORAGE_KEY);
+    setHydrated(true);
+  }, [progressKey]);
+
+  useEffect(() => {
+    if (!hydrated || !userId) return;
+    const payload: SavedProgress = { answers, step, done };
+    localStorage.setItem(progressKey, JSON.stringify(payload));
+  }, [answers, step, done, hydrated, progressKey, userId]);
+
+  useEffect(() => {
+    setHelpOpen(false);
+  }, [step]);
+
+  const visible = useMemo(() => getVisibleQuestions(answers), [answers]);
+
+  useEffect(() => {
+    if (done) return;
+    if (step > visible.length - 1 && visible.length > 0) {
+      setStep(visible.length - 1);
+    }
+  }, [visible.length, step, done]);
+
+  const question = visible[step];
+  const result = useMemo(() => evaluate(answers), [answers]);
+  const remaining = remainingCount(answers, question?.id);
+  const stepExcluded = useMemo(
+    () => excludedSchemes(answers, question?.id),
+    [answers, question?.id]
+  );
+
+  const goNext = (nextAnswers: VentureMatchAnswers) => {
+    const pruned = pruneInvisibleAnswers(nextAnswers);
+    const nextVisible = getVisibleQuestions(pruned);
+    setAnswers(pruned);
+    if (step >= nextVisible.length - 1) {
+      setDone(true);
+      return;
+    }
+    setStep(step + 1);
+  };
+
+  const applyHelpOptions = (optionIds: string[]) => {
+    if (!question) return;
+    const valid = optionIds.filter((id) => question.optionIds.includes(id));
+    if (!valid.length) return;
+    if (question.multi) {
+      const exclusive = valid.find(isExclusiveOwner);
+      const owners = exclusive
+        ? ([exclusive] as OwnerTag[])
+        : (valid.filter((id) => !isExclusiveOwner(id)) as OwnerTag[]);
+      if (!owners.length) return;
+      goNext({ ...answers, owner: owners });
+      return;
+    }
+    goNext({ ...answers, [question.id]: valid[0] } as VentureMatchAnswers);
+  };
+
+  const handleSelect = (optionId: string) => {
+    if (!question) return;
+    if (question.multi) {
+      const current = new Set(answers.owner || []);
+      if (isExclusiveOwner(optionId)) {
+        setAnswers(
+          pruneInvisibleAnswers({
+            ...answers,
+            owner: current.has(optionId as OwnerTag) ? [] : [optionId as OwnerTag],
+          })
+        );
+        return;
+      }
+      OWNER_EXCLUSIVE_TAGS.forEach((tag) => current.delete(tag));
+      if (current.has(optionId as OwnerTag)) current.delete(optionId as OwnerTag);
+      else current.add(optionId as OwnerTag);
+      setAnswers(
+        pruneInvisibleAnswers({ ...answers, owner: Array.from(current) as OwnerTag[] })
+      );
+      return;
+    }
+
+    const next = { ...answers, [question.id]: optionId } as VentureMatchAnswers;
+    goNext(next);
+  };
+
+  const handleOwnerContinue = () => {
+    if (!answers.owner?.length) return;
+    const pruned = pruneInvisibleAnswers(answers);
+    const nextVisible = getVisibleQuestions(pruned);
+    setAnswers(pruned);
+    if (step >= nextVisible.length - 1) {
+      setDone(true);
+      return;
+    }
+    setStep(step + 1);
+  };
+
+  const handleBack = () => {
+    if (done) {
+      setDone(false);
+      const last = Math.max(0, getVisibleQuestions(answers).length - 1);
+      setStep(last);
+      return;
+    }
+    if (step > 0) setStep(step - 1);
+    else navigate('/dashboard');
+  };
+
+  const handleRestart = () => {
+    setAnswers({});
+    setStep(0);
+    setDone(false);
+    localStorage.removeItem(progressKey);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
+  const under18 = answers.age === 'under18';
+
+  const handleCreateDprForScheme = (schemeCode: string) => {
+    if (under18) return;
+    saveHandoff(answers, result.matches);
+    navigate(`/individual-dpr/create?new=true&scheme=${encodeURIComponent(schemeCode)}`);
+  };
+
+  const handleCreateDpr = () => {
+    if (under18) return;
+    saveHandoff(answers, result.matches);
+    navigate('/individual-dpr/create?new=true');
+  };
+
+  const selected = question ? answers[question.id as QuestionId] : undefined;
+
+  if (!hydrated) {
+    return (
+      <Layout>
+        <div className="max-w-3xl mx-auto" />
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="max-w-4xl mx-auto overflow-x-visible">
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <Button variant="ghost" className="gap-2" onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4" />
+            {t('common.back')}
+          </Button>
+          <LanguageToggle />
+        </div>
+        <h1 className="text-2xl font-bold mb-6">{t('ventureMatch.title')}</h1>
+
+        {(under18 || question?.id === 'age') && (
+          <div className="mb-4">
+            <GuardianNotice />
+          </div>
+        )}
+
+        {done ? (
+          <VentureMatchResults
+            result={result}
+            onCreateDpr={handleCreateDpr}
+            onCreateDprForScheme={handleCreateDprForScheme}
+            onRestart={handleRestart}
+            disableCreate={under18}
+          />
+        ) : (
+          question && (
+            <>
+              <VentureMatchCard
+                question={question}
+                index={step}
+                total={visible.length}
+                selected={selected as string | string[] | undefined}
+                remaining={remaining}
+                onSelect={handleSelect}
+                onContinue={handleOwnerContinue}
+                helpTrigger={<VentureMatchHelpTrigger onClick={() => setHelpOpen(true)} />}
+              />
+              <VentureMatchStepExclusions excluded={stepExcluded} />
+              <VentureMatchHelpBubble
+                question={question}
+                answers={answers}
+                onApply={applyHelpOptions}
+                open={helpOpen}
+                onOpenChange={setHelpOpen}
+              />
+            </>
+          )
+        )}
+      </div>
+    </Layout>
+  );
+};

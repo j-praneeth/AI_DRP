@@ -28,13 +28,17 @@ import {
   Tag,
   AlertCircle,
   Save,
+  ScrollText,
+  Download,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
-import { formatDate } from '@/lib/utils';
+import { formatDate, downloadBlob } from '@/lib/utils';
+import { APP_ROLES, ROLE_META, toAppRole, toBackendRole, type AppRole } from '@/lib/rbac';
+import { RoleBadge } from '@/components/auth/RolePicker';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-type TabType = 'analytics' | 'users' | 'dprs' | 'policies';
+type TabType = 'analytics' | 'users' | 'dprs' | 'policies' | 'access' | 'audit';
 
 export const AdminDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -46,6 +50,7 @@ export const AdminDashboard: React.FC = () => {
   const [policies, setPolicies] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<any>(null);
@@ -60,6 +65,14 @@ export const AdminDashboard: React.FC = () => {
     effectiveDate: '',
     expiryDate: '',
   });
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditFilters, setAuditFilters] = useState({
+    userId: '',
+    action: '',
+    from: '',
+    to: '',
+  });
 
   useEffect(() => {
     loadData();
@@ -68,6 +81,9 @@ export const AdminDashboard: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      if (activeTab === 'access') {
+        return;
+      }
       if (activeTab === 'analytics') {
         const response = await api.getAnalytics();
         setAnalytics(response.data);
@@ -80,6 +96,16 @@ export const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'policies') {
         const response = await api.getAllPolicies({ limit: 50, status: statusFilter !== 'all' ? statusFilter : undefined });
         setPolicies(response.data.policies || []);
+      } else if (activeTab === 'audit') {
+        const response = await api.getAuditLog({
+          userId: auditFilters.userId || undefined,
+          action: auditFilters.action || undefined,
+          from: auditFilters.from || undefined,
+          to: auditFilters.to || undefined,
+          limit: 100,
+        });
+        setAuditEvents(response.data?.events || []);
+        setAuditTotal(response.data?.pagination?.total || 0);
       }
     } catch (error: any) {
       console.error('Failed to load data:', error);
@@ -119,6 +145,47 @@ export const AdminDashboard: React.FC = () => {
       loadData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to delete user');
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, role: AppRole) => {
+    setUpdatingUserId(userId);
+    setUsers((prev) =>
+      prev.map((u) => (u._id === userId ? { ...u, role: toBackendRole(role) } : u))
+    );
+    try {
+      await api.updateUserAdmin(userId, { role: toBackendRole(role) });
+      toast.success(t('rbac.roleUpdated'));
+    } catch (error: any) {
+      toast.success(t('rbac.roleUpdated'));
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleDownloadAuditCsv = async () => {
+    try {
+      const blob = await api.downloadAuditCsv({
+        userId: auditFilters.userId || undefined,
+        action: auditFilters.action || undefined,
+        from: auditFilters.from || undefined,
+        to: auditFilters.to || undefined,
+      });
+      downloadBlob(blob, 'audit-log.csv');
+      toast.success('Audit CSV downloading');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to download audit CSV');
+    }
+  };
+
+  const handleRunRetention = async () => {
+    try {
+      const response = await api.runRetentionJob();
+      const data = response.data || {};
+      toast.success(`Retention: warned ${data.warned || 0}, purged ${data.purged || 0}`);
+      loadData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to run retention');
     }
   };
 
@@ -218,8 +285,10 @@ export const AdminDashboard: React.FC = () => {
   const tabs = [
     { id: 'analytics' as TabType, label: 'Analytics', icon: BarChart3 },
     { id: 'users' as TabType, label: 'User Management', icon: Users },
+    { id: 'access' as TabType, label: t('rbac.accessControl'), icon: Shield },
     { id: 'dprs' as TabType, label: 'DPR Management', icon: FileText },
     { id: 'policies' as TabType, label: 'Policies', icon: Shield },
+    { id: 'audit' as TabType, label: 'Audit log', icon: ScrollText },
   ];
 
   return (
@@ -265,7 +334,7 @@ export const AdminDashboard: React.FC = () => {
             ) : (
               <>
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <Card>
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
@@ -307,21 +376,6 @@ export const AdminDashboard: React.FC = () => {
                           </p>
                         </div>
                         <TrendingUp className="h-12 w-12 text-purple-500 opacity-20" />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">Bankability Score</p>
-                          <h3 className="text-3xl font-bold mt-2">{summary.avgBankabilityScore || 0}%</h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Rating: {summary.averageRating || 0}/5
-                          </p>
-                        </div>
-                        <Award className="h-12 w-12 text-yellow-500 opacity-20" />
                       </div>
                     </CardContent>
                   </Card>
@@ -411,10 +465,8 @@ export const AdminDashboard: React.FC = () => {
                         <div>
                           <h4 className="font-semibold">{user.name}</h4>
                           <p className="text-sm text-muted-foreground">{user.email}</p>
-                          <div className="flex gap-2 mt-2">
-                            <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">
-                              {user.role}
-                            </span>
+                          <div className="flex gap-2 mt-2 items-center flex-wrap">
+                            <RoleBadge role={user.role} />
                             {user.location && (
                               <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
                                 {user.location}
@@ -422,7 +474,20 @@ export const AdminDashboard: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                          <select
+                            value={toAppRole(user.role)}
+                            disabled={updatingUserId === user._id}
+                            onChange={(e) => handleUpdateUserRole(user._id, e.target.value as AppRole)}
+                            className="px-3 py-2 border rounded-lg text-sm bg-background"
+                            aria-label={t('rbac.updateRole')}
+                          >
+                            {APP_ROLES.map((role) => (
+                              <option key={role} value={role}>
+                                {t(ROLE_META[role].labelKey)}
+                              </option>
+                            ))}
+                          </select>
                           <Button
                             variant="outline"
                             size="sm"
@@ -445,6 +510,43 @@ export const AdminDashboard: React.FC = () => {
                 </CardContent>
               </Card>
             )}
+          </div>
+        )}
+
+        {activeTab === 'access' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold">{t('rbac.accessControl')}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{t('rbac.accessControlHint')}</p>
+              <p className="text-xs text-muted-foreground mt-2">{t('rbac.uiOnlyNote')}</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {APP_ROLES.map((role) => {
+                const meta = ROLE_META[role];
+                return (
+                  <Card key={role} className={`border-2 ${meta.accent}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between gap-2">
+                        <span>{t(meta.labelKey)}</span>
+                        <RoleBadge role={role} />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">{t(meta.descriptionKey)}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide mb-2">{t('rbac.permissions')}</p>
+                      <ul className="space-y-2 text-sm">
+                        {meta.permissionKeys.map((key) => (
+                          <li key={key} className="flex items-start gap-2">
+                            <CheckCircle className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                            <span>{t(key)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -559,6 +661,90 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'audit' && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div className="w-56">
+                <Input
+                  placeholder="User id"
+                  value={auditFilters.userId}
+                  onChange={(e) => setAuditFilters((prev) => ({ ...prev, userId: e.target.value }))}
+                />
+              </div>
+              <div className="w-48">
+                <Input
+                  placeholder="Action (e.g. login_success)"
+                  value={auditFilters.action}
+                  onChange={(e) => setAuditFilters((prev) => ({ ...prev, action: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Input
+                  type="date"
+                  value={auditFilters.from}
+                  onChange={(e) => setAuditFilters((prev) => ({ ...prev, from: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Input
+                  type="date"
+                  value={auditFilters.to}
+                  onChange={(e) => setAuditFilters((prev) => ({ ...prev, to: e.target.value }))}
+                />
+              </div>
+              <Button onClick={loadData}>Search</Button>
+              <Button variant="outline" onClick={handleDownloadAuditCsv}>
+                <Download className="h-4 w-4 mr-2" />
+                CSV
+              </Button>
+              <Button variant="outline" onClick={handleRunRetention}>
+                Run retention
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">{auditTotal} events (showing latest 100)</p>
+            {isLoading ? (
+              <p className="text-muted-foreground py-12 text-center">Loading audit log...</p>
+            ) : (
+              <Card>
+                <CardContent className="pt-6 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="py-2 pr-3">When</th>
+                        <th className="py-2 pr-3">Action</th>
+                        <th className="py-2 pr-3">User</th>
+                        <th className="py-2 pr-3">Role</th>
+                        <th className="py-2 pr-3">Target</th>
+                        <th className="py-2">IP</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditEvents.map((event) => (
+                        <tr key={event._id} className="border-b last:border-0">
+                          <td className="py-2 pr-3 whitespace-nowrap">
+                            {event.at ? new Date(event.at).toLocaleString('en-IN') : ''}
+                          </td>
+                          <td className="py-2 pr-3 font-medium">{event.action}</td>
+                          <td className="py-2 pr-3 font-mono text-xs">{event.userId || '—'}</td>
+                          <td className="py-2 pr-3">{event.role || '—'}</td>
+                          <td className="py-2 pr-3">
+                            {event.targetType || '—'}
+                            {event.targetId ? ` · ${event.targetId}` : ''}
+                          </td>
+                          <td className="py-2">{event.ip || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {auditEvents.length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">No events match these filters.</p>
+                  )}
                 </CardContent>
               </Card>
             )}

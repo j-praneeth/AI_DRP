@@ -1,20 +1,9 @@
 // @ts-nocheck
-import OpenAI from 'openai';
+import { openai } from '../lib/openaiClient';
 import { DPRVersion } from '../models/DPRVersion.model';
 import { Project } from '../models/Project.model';
-import { STEP_FIELDS_MAPPING } from './stepFieldsMapping';
-import dotenv from 'dotenv';
+import { getStepFieldsMapping } from './stepFieldsMapping';
 import { ClusterSection } from '../models/ClusterSection.model';
-
-dotenv.config();
-
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY environment variable is required.');
-}
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export class ClusterDPRService {
   /**
@@ -391,11 +380,34 @@ Return only valid JSON without markdown code blocks.`;
       console.log(`📥 Received ${imageKeys.length} images from frontend:`, imageKeys);
       
       // Remove enhancedContent and images from clusterData before processing
-      const { enhancedContent, images, ...cleanClusterData } = clusterData;
-      
-      // Enhance data using OpenAI
-      console.log('🤖 Enhancing cluster DPR data with OpenAI...');
-      const enhancedDPR = await this.enhanceClusterDPRData(cleanClusterData);
+      const { enhancedContent, images, ...restClusterData } = clusterData;
+      let cleanClusterData = restClusterData;
+      const isIndividual = !!(
+        cleanClusterData.isIndividualDPR ||
+        cleanClusterData.metadata?.isIndividualDPR
+      );
+      const projectType = isIndividual ? 'individual' : 'cluster';
+      const unitName =
+        cleanClusterData.step1?.unitName ||
+        cleanClusterData.step1?.clusterName ||
+        (isIndividual ? 'Individual unit' : 'Cluster DPR');
+
+      let enhancedDPR: any;
+      if (isIndividual) {
+        // Create New Latest DPR: persist answers only — no cluster narrative chapters.
+        enhancedDPR = {
+          coverPage: '',
+          tableOfContents: '',
+          sections: {},
+          metadata: {
+            isIndividualDPR: true,
+            matchedSchemeCode: cleanClusterData.matchedSchemeCode || null,
+          },
+        };
+      } else {
+        console.log('🤖 Enhancing cluster DPR data with OpenAI...');
+        enhancedDPR = await this.enhanceClusterDPRData(cleanClusterData);
+      }
       
       // Merge provided enhanced content with generated content
       // User-enhanced content takes precedence over AI-generated content
@@ -430,18 +442,23 @@ Return only valid JSON without markdown code blocks.`;
 
       // Create or find a project for this cluster DPR
       // First try to find by project name, then by stepData if available
-      let project = await Project.findOne({
-        userId,
-        projectName: cleanClusterData.step1?.clusterName || 'Cluster DPR',
-        projectType: 'cluster',
-      });
+      let project = cleanClusterData.projectId
+        ? await Project.findById(cleanClusterData.projectId)
+        : await Project.findOne({
+            userId,
+            projectName: unitName,
+            projectType,
+          });
 
       // If project not found, try to find by matching stepData (for existing drafts)
-      if (!project && cleanClusterData.step1?.clusterName) {
+      if (!project && (cleanClusterData.step1?.clusterName || cleanClusterData.step1?.unitName)) {
         const projects = await Project.find({
           userId,
-          projectType: 'cluster',
-          'stepData.step1.clusterName': cleanClusterData.step1.clusterName,
+          projectType,
+          $or: [
+            { 'stepData.step1.clusterName': cleanClusterData.step1.clusterName },
+            { 'stepData.step1.unitName': cleanClusterData.step1.unitName },
+          ],
         }).sort({ updatedAt: -1 }).limit(1);
         
         if (projects.length > 0) {
@@ -495,11 +512,11 @@ Return only valid JSON without markdown code blocks.`;
       if (!project) {
         project = await Project.create({
           userId,
-          projectName: cleanClusterData.step1?.clusterName || 'Cluster DPR',
-          industrySector: cleanClusterData.step2?.sectorType || 'Cluster Development',
+          projectName: unitName,
+          industrySector: cleanClusterData.step2?.sectorType || (isIndividual ? 'Individual unit' : 'Cluster Development'),
           location: cleanClusterData.step1?.location || '',
           district: cleanClusterData.step1?.district || '',
-          projectType: 'cluster',
+          projectType,
           totalCost: totalCost || 100000, // Default to 1 lakh if not provided
           ownContribution: ownContribution || 0,
           loanAmount: loanAmount || 0,
@@ -554,7 +571,9 @@ Return only valid JSON without markdown code blocks.`;
             operatingCostRevenue: enhancedDPR.sections?.operatingCostRevenue || '',
             implementationSchedule: enhancedDPR.sections?.implementationSchedule || '',
             annexures: enhancedDPR.sections?.annexures || '',
-            isClusterDPR: true,
+            isClusterDPR: !isIndividual,
+            isIndividualDPR: isIndividual,
+            matchedSchemeCode: cleanClusterData.matchedSchemeCode || null,
             clusterData: cleanClusterData,
             // Store generated sections separately (for user review before applying)
             generatedSections: generatedSections,
@@ -587,7 +606,9 @@ Return only valid JSON without markdown code blocks.`;
             operatingCostRevenue: enhancedDPR.sections?.operatingCostRevenue || '',
             implementationSchedule: enhancedDPR.sections?.implementationSchedule || '',
             annexures: enhancedDPR.sections?.annexures || '',
-            isClusterDPR: true,
+            isClusterDPR: !isIndividual,
+            isIndividualDPR: isIndividual,
+            matchedSchemeCode: cleanClusterData.matchedSchemeCode || null,
             clusterData: cleanClusterData,
             // Store generated sections separately (for user review before applying)
             generatedSections: generatedSections,
@@ -671,8 +692,10 @@ Return only valid JSON without markdown code blocks.`;
         }));
       });
 
-      await Promise.all(sectionPromises);
-      console.log(`✅ Stored ${Object.keys(sectionsToStore).length} generated sections in ClusterSection model`);
+      if (!isIndividual) {
+        await Promise.all(sectionPromises);
+        console.log(`✅ Stored ${Object.keys(sectionsToStore).length} generated sections in ClusterSection model`);
+      }
 
       // Return the saved DPR content structure (not the raw enhancedDPR)
       // This ensures the frontend receives the data in the correct format
@@ -934,15 +957,23 @@ Use exact values from the data above. Write in a formal, persuasive tone suitabl
         return [];
       }
 
-      // Get step field mapping
-      const stepMapping = STEP_FIELDS_MAPPING[currentStep];
+      const isIndividualDPR = previousStepsData?._isIndividualDPR === true;
+      const schemeCode = previousStepsData?._schemeCode || null;
+      const stepMapping = getStepFieldsMapping(currentStep, isIndividualDPR, schemeCode);
       if (!stepMapping) {
         console.log(`No field mapping found for step ${currentStep}`);
         return [];
       }
+      if (!stepMapping.fields.length) {
+        return [];
+      }
 
-      // Build comprehensive context from ALL previous steps
-      const contextText = this.formatStepDataAsText(previousStepsData);
+      const previousForText = { ...previousStepsData };
+      delete previousForText._isIndividualDPR;
+      delete previousForText._promptContext;
+      delete previousForText._schemeCode;
+
+      const contextText = this.formatStepDataAsText(previousForText);
       const currentStepText = this.formatStepDataAsText({ [`step${currentStep}`]: currentStepData });
 
       // Extract key information from Step 1 for quick reference
@@ -967,10 +998,10 @@ Use exact values from the data above. Write in a formal, persuasive tone suitabl
 
       // Build summary of all previous steps data
       const previousStepsSummary = [];
-      if (previousStepsData.step1) previousStepsSummary.push(`Step 1: Basic Cluster Details - ${clusterName}${district ? ` in ${district}` : ''}${natureOfBusiness ? ` (${natureOfBusiness})` : ''}`);
+      if (previousStepsData.step1) previousStepsSummary.push(`Step 1: ${isIndividualDPR ? 'Unit' : 'Cluster'} details - ${clusterName}${district ? ` in ${district}` : ''}${natureOfBusiness ? ` (${natureOfBusiness})` : ''}`);
       if (previousStepsData.step2) previousStepsSummary.push(`Step 2: Sector Overview - ${step2Data.sectorType || 'Sector information available'}`);
       if (previousStepsData.step3) previousStepsSummary.push(`Step 3: District Profile - ${step3Data.geography ? 'Geographical and infrastructure details available' : 'District information available'}`);
-      if (previousStepsData.step4) previousStepsSummary.push(`Step 4: Cluster Profile - ${step4Data.yearOfEstablishment ? `Established ${step4Data.yearOfEstablishment}` : 'Cluster details available'}`);
+      if (previousStepsData.step4) previousStepsSummary.push(`Step 4: ${isIndividualDPR ? 'Unit' : 'Cluster'} Profile - ${step4Data.yearOfEstablishment ? `Established ${step4Data.yearOfEstablishment}` : 'Details available'}`);
       if (previousStepsData.step5) previousStepsSummary.push(`Step 5: Value Chain - ${step5Data.finalProducts ? 'Value chain mapped' : 'Value chain details available'}`);
       if (previousStepsData.step6) previousStepsSummary.push(`Step 6: Market Assessment - Market analysis completed`);
       if (previousStepsData.step7) previousStepsSummary.push(`Step 7: Gap Analysis - Gaps identified`);
@@ -995,7 +1026,23 @@ Use exact values from the data above. Write in a formal, persuasive tone suitabl
       // Generate context if ANY of the three key fields are present
       const hasStep1Context = currentStep === 1 && (clusterName || location || district);
       const step1Context = hasStep1Context
-        ? `\n═══════════════════════════════════════════════════════════════
+        ? (isIndividualDPR
+          ? `\n═══════════════════════════════════════════════════════════════
+UNIT CONTEXT (one entrepreneur / one firm — NOT a cluster):
+═══════════════════════════════════════════════════════════════
+${clusterName ? `Unit / project name: ${clusterName}` : 'Unit name: (not provided)'}
+${location ? `Location: ${location}` : 'Location: (not provided)'}
+${district ? `District: ${district}` : 'District: (not provided)'}
+${natureOfBusiness ? `Nature of business (already filled): ${natureOfBusiness}` : ''}
+${majorProducts ? `Major products (already filled): ${majorProducts}` : ''}
+
+CRITICAL:
+- Suggest only the fields listed for this step (nature of business and major products).
+- Never suggest enterpriseCount, ageOfEnterprises, employmentPerUnit, investmentPerUnit, turnoverPerUnit, or marketServed — those are cluster-only.
+- Major products must be specific goods (e.g. "turned wooden toys, lacquerware") — do NOT copy the sector word such as "Manufacturing".
+- Write as if this is a single unit in ${location || 'the stated location'}${district ? `, ${district}` : ''}.
+`
+          : `\n═══════════════════════════════════════════════════════════════
 CLUSTER CONTEXT (Use this information to generate suggestions):
 ═══════════════════════════════════════════════════════════════
 ${clusterName ? `Cluster Name: ${clusterName}` : 'Cluster Name: (not provided)'}
@@ -1011,7 +1058,7 @@ For example:
 - "Major Products" should be relevant to what ${clusterName || 'this cluster'} typically produces
 - Enterprise counts, investment, turnover should be realistic estimates for ${clusterName ? `a cluster named "${clusterName}"` : 'this type of cluster'}
 - Market served percentages should be appropriate for ${clusterName || 'the cluster'}${location ? ` in ${location}` : ''}${district ? `, ${district}` : ''}
-`
+`)
         : '';
       
       // Debug logging for Step 1
@@ -1026,7 +1073,9 @@ For example:
         });
       }
 
-      const prompt = `You are an expert consultant helping create a Detailed Project Report (DPR) for an MSME cluster.
+      const prompt = `${isIndividualDPR
+        ? 'You are an expert consultant helping create a Detailed Project Report (DPR) for ONE individual MSME unit (single entrepreneur / firm). Never mention a cluster, SPV, CFC, member units, or counts of micro/small/medium enterprises.'
+        : 'You are an expert consultant helping create a Detailed Project Report (DPR) for an MSME cluster.'}
 
 ═══════════════════════════════════════════════════════════════
 CURRENT STEP TO COMPLETE:
@@ -1076,20 +1125,28 @@ CRITICAL REQUIREMENTS:
 
 2. **ANALYZE CONTEXT DATA COMPREHENSIVELY:**
    ${currentStep === 1 
-     ? `   - This is STEP 1 - you have the CLUSTER CONTEXT provided above (Cluster Name: "${clusterName}"${location ? `, Location: ${location}` : ''}${district ? `, District: ${district}` : ''})
+     ? (isIndividualDPR
+       ? `   - This is STEP 1 for a SINGLE UNIT. Unit name: "${clusterName}"${location ? `, Location: ${location}` : ''}${district ? `, District: ${district}` : ''}
+   - Suggest natureOfBusiness (what this one unit does) and majorProducts (named goods, not the word Manufacturing/Services).
+   - Do not invent a cluster of many enterprises.
+   ${schemeCode === 'VISHWAKARMA' ? `- This unit is for PM Vishwakarma. You MUST also suggest craft (exact trade name from the field label list), currentTools (what they use today), and newTools (what to buy with the ₹15,000 voucher). Put the actual values in "suggestion", not instructions.` : ''}
+   ${schemeCode === 'SVANIDHI' ? `- This unit is for PM SVANidhi. You MUST suggest covOrLor as exactly "cov" or "lor", and upiQr as a plausible UPI ID.` : ''}
+   ${schemeCode === 'PMFME' ? `- This unit is for PMFME. You MUST suggest fssai as exactly "yes" or "planned".` : ''}
+   ${schemeCode === 'AP_EDP' ? `- This unit is for AP MSME-EDP 4.0 new-unit capital subsidy. You MUST suggest enterpriseSize (micro/small/medium), specialCategory (yes/no), scStOwned (yes/no), apDomicile (yes/no), and apiicPark (yes/no).` : ''}`
+       : `   - This is STEP 1 - you have the CLUSTER CONTEXT provided above (Cluster Name: "${clusterName}"${location ? `, Location: ${location}` : ''}${district ? `, District: ${district}` : ''})
    - Use the cluster name "${clusterName}" as the PRIMARY BASIS for generating ALL suggestions
    - For each field, think: "What would be appropriate for a cluster named '${clusterName}'${location ? ` located in ${location}` : ''}${district ? `, ${district} district` : ''}?"
    - Make suggestions SPECIFIC to "${clusterName}" - not generic
    - If cluster name suggests a specific industry/product (e.g., "Cherry Farming", "Coir", "Handicrafts"), use that to infer nature of business, major products, etc.
    - Use location and district to make geographical spread suggestions more accurate
-   - Generate realistic, context-appropriate suggestions based on the cluster name and location`
+   - Generate realistic, context-appropriate suggestions based on the cluster name and location`)
      : `   - You have been provided with COMPLETE data from ALL previous steps (Steps 1-${currentStep - 1})
    - Read through ALL the "COMPREHENSIVE DATA FROM ALL PREVIOUS STEPS" section above
    - Extract and use relevant information from:
-     * Step 1: Cluster basics (${clusterName}${district ? ` in ${district}` : ''}, ${natureOfBusiness}, ${majorProducts}, ${totalEnterprises} enterprises)
+     * Step 1: ${isIndividualDPR ? 'Unit' : 'Cluster'} basics (${clusterName}${district ? ` in ${district}` : ''}, ${natureOfBusiness}, ${majorProducts}${isIndividualDPR ? '' : `, ${totalEnterprises} enterprises`})
      ${previousStepsData.step2 ? `     * Step 2: Sector overview (${step2Data.sectorType || 'sector type'}, ${step2Data.nationalImportance ? 'national/state importance' : 'sector description'})` : ''}
      ${previousStepsData.step3 ? `     * Step 3: District/regional profile (geography, infrastructure, connectivity)` : ''}
-     ${previousStepsData.step4 ? `     * Step 4: Cluster profile (establishment, evolution, capacity, technology)` : ''}
+     ${previousStepsData.step4 ? `     * Step 4: ${isIndividualDPR ? 'Unit' : 'Cluster'} profile (establishment, evolution, capacity, technology)` : ''}
      ${previousStepsData.step5 ? `     * Step 5: Value chain (raw materials, products, buyers)` : ''}
      ${previousStepsData.step6 ? `     * Step 6: Market assessment (demand, competition, pricing)` : ''}
      ${previousStepsData.step7 ? `     * Step 7: Gap analysis (technology, infrastructure, skills gaps)` : ''}
@@ -1107,7 +1164,7 @@ CRITICAL REQUIREMENTS:
      * For TEXT fields: Suggest detailed paragraphs derived from previous step information
      * For SHORTTEXT fields: Suggest concise phrases (10-15 words max) based on previous steps
      * For OBJECT fields: Suggest structured data matching the EXACT expected format, derived from previous steps
-       ${currentStep === 1 ? `
+       ${currentStep === 1 && !isIndividualDPR ? `
        CRITICAL FOR STEP 1 OBJECT FIELDS - USE THESE EXACT FORMATS:
        - enterpriseCount: MUST be {"micro": <number>, "small": <number>, "medium": <number>}
          Example: {"micro": 15, "small": 8, "medium": 2}
@@ -1470,19 +1527,25 @@ Return only the suggestion text, no JSON or formatting.`;
     suggestion: string
   ): Promise<string | null> {
     try {
-      // Get step field mapping
-      const stepMapping = STEP_FIELDS_MAPPING[currentStep];
+      const isIndividualDPR = previousStepsData?._isIndividualDPR === true;
+      const schemeCode = previousStepsData?._schemeCode || null;
+      const stepMapping = getStepFieldsMapping(currentStep, isIndividualDPR, schemeCode);
       if (!stepMapping) {
         console.log(`No field mapping found for step ${currentStep}`);
         return null;
       }
 
+      const previousForText = { ...previousStepsData };
+      delete previousForText._isIndividualDPR;
+      delete previousForText._promptContext;
+      delete previousForText._schemeCode;
+
       // Build context from all previous steps
-      const contextText = this.formatStepDataAsText(previousStepsData);
+      const contextText = this.formatStepDataAsText(previousForText);
       const currentStepText = this.formatStepDataAsText({ [`step${currentStep}`]: currentStepData });
 
       // Extract Step 1 key information
-      const step1Data = previousStepsData.step1 || {};
+      const step1Data = currentStep === 1 ? (currentStepData || {}) : (previousStepsData.step1 || {});
       const clusterName = step1Data.clusterName || '';
       const district = step1Data.district || '';
       const natureOfBusiness = step1Data.natureOfBusiness || '';
@@ -1638,7 +1701,9 @@ CRITICAL FORMAT FOR ${fieldName}:
 - Make it appropriate for a DPR document`;
       }
 
-      const prompt = `You are an expert consultant helping create a Detailed Project Report (DPR) for an MSME cluster.
+      const prompt = `${previousStepsData?._isIndividualDPR
+        ? 'You are an expert consultant helping create a Detailed Project Report (DPR) for ONE individual MSME unit. Never write as if this is a cluster, SPV, or CFC.'
+        : 'You are an expert consultant helping create a Detailed Project Report (DPR) for an MSME cluster.'}
 
 CURRENT STEP: Step ${currentStep} - ${stepMapping.stepName}
 FIELD TO FILL: ${fieldName}

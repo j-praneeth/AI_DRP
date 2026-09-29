@@ -18,6 +18,10 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminDocuments } from './pages/AdminDocuments';
 import { Profile } from './pages/Profile';
 import { ClusterDPRCreation } from './pages/ClusterDPRCreation';
+import { IndividualDPRCreation } from './pages/IndividualDPRCreation';
+import { VentureMatch } from './pages/VentureMatch';
+import { Privacy } from './pages/Privacy';
+import { AccountPrivacy } from './pages/AccountPrivacy';
 import './i18n/config';
 
 function App() {
@@ -64,6 +68,7 @@ function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/privacy" element={<Privacy />} />
         
         <Route
           path="/dashboard"
@@ -154,6 +159,24 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/individual-dpr/create"
+          element={
+            <ProtectedRoute>
+              <IndividualDPRCreation />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/venture-match"
+          element={
+            <ProtectedRoute>
+              <VentureMatch />
+            </ProtectedRoute>
+          }
+        />
         
         <Route
           path="/chat"
@@ -172,11 +195,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/account/privacy"
+          element={
+            <ProtectedRoute>
+              <AccountPrivacy />
+            </ProtectedRoute>
+          }
+        />
         
         <Route
           path="/admin"
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="super_admin">
               <AdminDashboard />
             </ProtectedRoute>
           }
@@ -185,7 +217,7 @@ function App() {
         <Route
           path="/admin/documents"
           element={
-            <ProtectedRoute requiredRole="admin">
+            <ProtectedRoute requiredRole="super_admin">
               <AdminDocuments />
             </ProtectedRoute>
           }

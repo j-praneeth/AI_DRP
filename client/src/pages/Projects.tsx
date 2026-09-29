@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
+import { isSuperAdmin } from '@/lib/rbac';
 import { api } from '@/lib/api';
 import { Layout } from '@/components/layout/Layout';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/Card';
@@ -17,7 +18,7 @@ export const Projects: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isSuperAdmin(user?.role);
   const { projects, setProjects, deleteProject, isStale } = useProjectStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -85,11 +86,19 @@ export const Projects: React.FC = () => {
           <div className="flex gap-3">
             <Button 
               variant="outline" 
-              onClick={() => navigate('/dpr/builder')}
+              onClick={() => navigate('/venture-match')}
               className="border-2"
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              {t('projects.newDPR')}
+              {t('dashboard.ventureMatch')}
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/individual-dpr/create?new=true')}
+              className="border-2"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Create New Latest DPR
             </Button>
             <Button 
               onClick={() => navigate('/projects/create')}
@@ -219,10 +228,10 @@ export const Projects: React.FC = () => {
                       variant="outline"
                       size="sm"
                       className="flex-1 border-2 hover:bg-secondary/5 hover:border-secondary"
-                      onClick={() => navigate(`/dpr/builder/${project._id}`)}
-                      title="Create DPR for this project"
+                      onClick={() => navigate('/individual-dpr/create?new=true')}
+                      title="Create New Latest DPR"
                     >
-                      <Sparkles className="h-4 w-4 mr-1" />
+                      <FileText className="h-4 w-4 mr-1" />
                       DPR
                     </Button>
                     <Button

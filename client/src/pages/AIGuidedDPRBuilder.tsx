@@ -8,6 +8,16 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
+import { StepAnalyzeAssist, AssistSuggestion } from '@/components/dpr-builder/StepAnalyzeAssist';
+import { StepChatMessage } from '@/components/dpr-builder/StepChatPanel';
+import {
+  buildFactSheet,
+  buildStepChatOpener,
+  isAssistStep,
+  isStepReadyForAnalyze,
+} from '@/lib/dprBuilderFactSheet';
+import { loadAssistPrompt } from '@/lib/dprBuilderAssistPrompt';
+import { consumeHandoff, buildDprPrefill } from '@/lib/ventureMatch/mapToDpr';
 import {
   ArrowLeft,
   ArrowRight,
@@ -104,22 +114,57 @@ export const AIGuidedDPRBuilder: React.FC = () => {
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, any>>({});
   const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
   const [project, setProject] = useState<any>(null);
+  const [analyzedSteps, setAnalyzedSteps] = useState<Record<string, boolean>>({});
+  const [analysisByStep, setAnalysisByStep] = useState<Record<string, AssistSuggestion[]>>({});
+  const [chatByStep, setChatByStep] = useState<Record<string, StepChatMessage[]>>({});
+  const [chatOpen, setChatOpen] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [assistPrompt, setAssistPrompt] = useState(() => loadAssistPrompt());
 
   useEffect(() => {
     if (projectId) {
       loadProject();
     } else {
-      // Load saved progress from localStorage if no projectId
+      let nextStepData: StepData = {};
+      let nextStep = 0;
+      let nextAnalyzed = {};
+      let nextAnalysis = {};
+      let nextChat = {};
       const saved = localStorage.getItem('dpr-builder-progress');
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setStepData(parsed.stepData || {});
-          setCurrentStep(parsed.currentStep || 0);
+          nextStepData = parsed.stepData || {};
+          nextStep = parsed.currentStep || 0;
+          nextAnalyzed = parsed.analyzedSteps || {};
+          nextAnalysis = parsed.analysisByStep || {};
+          nextChat = parsed.chatByStep || {};
         } catch (e) {
           console.error('Failed to load saved progress:', e);
         }
       }
+      const handoff = consumeHandoff();
+      if (handoff) {
+        const prefill = buildDprPrefill(handoff.answers, handoff.matches);
+        nextStepData = {
+          ...nextStepData,
+          businessOverview: {
+            ...(nextStepData.businessOverview || {}),
+            ...prefill.businessOverview,
+          },
+          applicantInfo: {
+            ...(nextStepData.applicantInfo || {}),
+            ...prefill.applicantInfo,
+          },
+          eligibleSchemes: prefill.eligibleSchemes,
+        };
+      }
+      setStepData(nextStepData);
+      setCurrentStep(nextStep);
+      setAnalyzedSteps(nextAnalyzed);
+      setAnalysisByStep(nextAnalysis);
+      setChatByStep(nextChat);
     }
   }, [projectId]);
 
@@ -129,11 +174,14 @@ export const AIGuidedDPRBuilder: React.FC = () => {
       const saveData = {
         stepData,
         currentStep,
+        analyzedSteps,
+        analysisByStep,
+        chatByStep,
         timestamp: Date.now(),
       };
       localStorage.setItem('dpr-builder-progress', JSON.stringify(saveData));
     }
-  }, [stepData, currentStep]);
+  }, [stepData, currentStep, analyzedSteps, analysisByStep, chatByStep]);
 
   const loadProject = async () => {
     try {
@@ -927,12 +975,99 @@ Return ready-to-use content that can be directly filled into form fields. The us
     }
   };
 
+  const handleAnalyzeStep = async () => {
+    const step = STEPS[currentStep];
+    if (!isAssistStep(step.id)) return;
+    if (!isStepReadyForAnalyze(step.id, stepData)) {
+      toast.error(t('dprBuilder.errors.completeStepForAnalyze'));
+      return;
+    }
+
+    try {
+      setAnalyzing(true);
+      const factSheet = buildFactSheet(stepData, step.id);
+      const response = await api.analyzeDprBuilderStep({
+        stepId: step.id,
+        stepTitle: step.title,
+        factSheet,
+        customInstructions: assistPrompt,
+      });
+      const suggestions = response?.data?.suggestions || response?.suggestions || [];
+      setAnalysisByStep((prev) => ({ ...prev, [step.id]: suggestions }));
+      setAnalyzedSteps((prev) => ({ ...prev, [step.id]: true }));
+      setChatByStep((prev) => {
+        const updated = { ...prev };
+        delete updated[step.id];
+        return updated;
+      });
+      setChatOpen(false);
+    } catch (error) {
+      console.error('Error analyzing DPR builder step:', error);
+      toast.error(t('dprBuilder.assist.analyzeFailed'));
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleOpenStepChat = () => {
+    const step = STEPS[currentStep];
+    if (!analyzedSteps[step.id]) return;
+    setChatByStep((prev) => {
+      if (prev[step.id]?.length) return prev;
+      const factSheet = buildFactSheet(stepData, step.id);
+      return {
+        ...prev,
+        [step.id]: [
+          {
+            role: 'assistant',
+            content: buildStepChatOpener({
+              stepTitle: step.title,
+              currentStep: factSheet.currentStep,
+              suggestions: analysisByStep[step.id] || [],
+              t,
+            }),
+          },
+        ],
+      };
+    });
+    setChatOpen(true);
+  };
+
+  const handleSendStepChat = async (message: string) => {
+    const step = STEPS[currentStep];
+    const history = chatByStep[step.id] || [];
+    const nextHistory = [...history, { role: 'user' as const, content: message }];
+    setChatByStep((prev) => ({ ...prev, [step.id]: nextHistory }));
+
+    try {
+      setChatLoading(true);
+      const factSheet = buildFactSheet(stepData, step.id);
+      const response = await api.chatDprBuilderStep({
+        stepId: step.id,
+        stepTitle: step.title,
+        factSheet,
+        message,
+        conversationHistory: history.map((m) => ({ role: m.role, content: m.content })),
+        customInstructions: assistPrompt,
+      });
+      const reply = response?.data?.response || response?.response || '';
+      setChatByStep((prev) => ({
+        ...prev,
+        [step.id]: [...(prev[step.id] || nextHistory), { role: 'assistant', content: reply }],
+      }));
+    } catch (error) {
+      console.error('Error in DPR builder step chat:', error);
+      toast.error(t('dprBuilder.assist.chatFailed'));
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const handleNext = async () => {
     if (currentStep < STEPS.length - 1) {
       // Save progress before moving to next step
       await saveProgressToBackend();
-      
-      // Navigate to next step
+      setChatOpen(false);
       setCurrentStep(currentStep + 1);
       // Don't auto-load AI suggestions - user must click the button to get suggestions
     }
@@ -940,6 +1075,7 @@ Return ready-to-use content that can be directly filled into form fields. The us
 
   const handlePrevious = () => {
     if (currentStep > 0) {
+      setChatOpen(false);
       setCurrentStep(currentStep - 1);
     }
   };
@@ -952,6 +1088,9 @@ Return ready-to-use content that can be directly filled into form fields. The us
       const saveData = {
         stepData,
         currentStep,
+        analyzedSteps,
+        analysisByStep,
+        chatByStep,
         timestamp: Date.now(),
       };
       localStorage.setItem('dpr-builder-progress', JSON.stringify(saveData));
@@ -1434,7 +1573,27 @@ Return ready-to-use content that can be directly filled into form fields. The us
 
             {/* Step Content */}
             <div className="min-h-[400px]">
-              {renderStepContent()}
+              {isAssistStep(STEPS[currentStep].id) ? (
+                <StepAnalyzeAssist
+                  stepTitle={STEPS[currentStep].title}
+                  analyzing={analyzing}
+                  analyzed={!!analyzedSteps[STEPS[currentStep].id]}
+                  suggestions={analysisByStep[STEPS[currentStep].id] || []}
+                  chatOpen={chatOpen}
+                  chatLoading={chatLoading}
+                  messages={chatByStep[STEPS[currentStep].id] || []}
+                  customInstructions={assistPrompt}
+                  onCustomInstructionsChange={setAssistPrompt}
+                  onAnalyze={handleAnalyzeStep}
+                  onOpenChat={handleOpenStepChat}
+                  onCloseChat={() => setChatOpen(false)}
+                  onSendChat={handleSendStepChat}
+                >
+                  {renderStepContent()}
+                </StepAnalyzeAssist>
+              ) : (
+                renderStepContent()
+              )}
             </div>
 
             {/* Navigation */}

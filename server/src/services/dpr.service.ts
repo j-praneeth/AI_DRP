@@ -5,6 +5,12 @@ import { Project } from '../models/Project.model';
 import { OpenAIService } from './openai.service';
 import { FinancialService } from './financial.service';
 import { QualityService } from './quality.service';
+import {
+  buildIndividualDocument,
+  generateIndividualDprDocx,
+  isIndividualDprRecord,
+  renderIndividualDprHtml,
+} from './individualDprDocument';
 import { processMarkdownBold, removeMarkdownBold, processMarkdownText, ProcessedParagraph } from '../utils/textProcessor';
 import PDFDocument from 'pdfkit';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } from 'docx';
@@ -13,9 +19,44 @@ import path from 'path';
 import { Buffer } from 'buffer';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { openai } from '../lib/openaiClient';
 import os from 'os';
 
 const execAsync = promisify(exec);
+
+function resolveChromeExecutable(): string | undefined {
+  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH;
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+  const candidates = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+  return candidates.find((p) => fs.existsSync(p));
+}
+
+function puppeteerLaunchOptions(): Record<string, unknown> {
+  const executablePath = resolveChromeExecutable();
+  const options: Record<string, unknown> = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+    ],
+    timeout: 30000,
+  };
+  if (executablePath) {
+    console.log(`🌐 Using Chrome at ${executablePath}`);
+    options.executablePath = executablePath;
+  }
+  return options;
+}
 
 export class DPRService {
   /**
@@ -400,6 +441,12 @@ export class DPRService {
       const project = dpr.projectId;
       if (!project) {
         throw new Error('Project not found for DPR');
+      }
+
+      // Create New Latest DPR — scheme Q&A, never the cluster chapter template
+      if (isIndividualDprRecord(dpr, project)) {
+        console.log('📄 Using Individual scheme Q&A PDF (not cluster template)');
+        return await this.generateIndividualDPRPDF(dpr, project, language);
       }
 
       // Check if this is a cluster DPR - multiple ways to detect
@@ -3911,7 +3958,67 @@ export class DPRService {
   /**
    * Generate PDF for Cluster DPR matching the preview template exactly using HTML-to-PDF
    */
+  static async generateIndividualDPRPDF(dpr: any, project: any, _language: 'english' | 'telugu'): Promise<Buffer> {
+    const doc = buildIndividualDocument(dpr, project);
+    const html = renderIndividualDprHtml(doc);
+    try {
+      return await this.generatePDFFromHTML(html, { margin: '16mm' });
+    } catch (error: any) {
+      console.warn('⚠️ Individual HTML PDF failed, using PDFKit fallback:', error?.message);
+      return this.generateIndividualDPRPDFWithPDFKit(doc);
+    }
+  }
+
+  private static generateIndividualDPRPDFWithPDFKit(docModel: ReturnType<typeof buildIndividualDocument>): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const PDFDocument = require('pdfkit');
+        const pdf = new PDFDocument({ size: 'A4', margin: 50 });
+        const chunks: Buffer[] = [];
+        pdf.on('data', (chunk: Buffer) => chunks.push(chunk));
+        pdf.on('end', () => resolve(Buffer.concat(chunks)));
+        pdf.on('error', reject);
+
+        pdf.fontSize(22).font('Helvetica-Bold').text('DETAILED PROJECT REPORT', { align: 'center' });
+        pdf.moveDown(0.4);
+        pdf.fontSize(14).font('Helvetica').text('On', { align: 'center' });
+        pdf.text(docModel.actionLine, { align: 'center' });
+        pdf.moveDown(0.3);
+        pdf.fillColor('#059669').fontSize(18).font('Helvetica-Bold').text(docModel.unitName.toUpperCase(), { align: 'center' });
+        pdf.fillColor('#000000').fontSize(12).font('Helvetica').text(docModel.underLine, { align: 'center' });
+        pdf.moveDown(0.8);
+        pdf.fontSize(11).text(`District: ${docModel.district || '—'}`);
+        pdf.text(`Location: ${docModel.location || '—'}`);
+        if (docModel.entrepreneurName) pdf.text(`Entrepreneur name: ${docModel.entrepreneurName}`);
+        pdf.moveDown(1);
+        pdf.fontSize(14).font('Helvetica-Bold').text('Table of Contents');
+        pdf.moveDown(0.4);
+        pdf.fontSize(11).font('Helvetica');
+        docModel.sections.forEach((s) => {
+          pdf.text(`${s.n}. ${s.title}`);
+        });
+        docModel.sections.forEach((s) => {
+          pdf.addPage();
+          pdf.fontSize(14).font('Helvetica-Bold').text(`${s.n}. ${s.title}`);
+          pdf.moveDown(0.4);
+          pdf.fontSize(10).font('Helvetica');
+          s.rows.forEach((r) => {
+            pdf.font('Helvetica-Bold').text(r.label);
+            pdf.font('Helvetica').text(r.value, { indent: 12 });
+            pdf.moveDown(0.3);
+          });
+        });
+        pdf.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
   static async generateClusterDPRPDF(dpr: any, project: any, language: 'english' | 'telugu', enhancedParagraphs?: Record<string, string>): Promise<Buffer> {
+    if (isIndividualDprRecord(dpr, project)) {
+      return this.generateIndividualDPRPDF(dpr, project, language);
+    }
     try {
       console.log('📄 Starting Cluster DPR PDF generation...');
       console.log('   ✅ Using: cluster-dpr-pdf.html template');
@@ -3956,17 +4063,7 @@ export class DPRService {
         const puppeteer = require('puppeteer');
         console.log('🔄 Launching Puppeteer browser...');
         
-        const browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--disable-gpu'
-          ],
-          timeout: 30000
-        });
+        const browser = await puppeteer.launch(puppeteerLaunchOptions());
         
         try {
           const page = await browser.newPage();
@@ -4154,27 +4251,22 @@ export class DPRService {
    * Generate a PDF directly from a full HTML document string.
    * Used to ensure the downloaded PDF matches the client preview 1:1 (Cluster DPR React view).
    */
-  static async generatePDFFromHTML(html: string): Promise<Buffer> {
+  static async generatePDFFromHTML(
+    html: string,
+    options?: { margin?: string }
+  ): Promise<Buffer> {
     if (!html || typeof html !== 'string') {
       throw new Error('HTML must be a string');
     }
+
+    const pageMargin = options?.margin || '0';
 
     // Try to use Puppeteer for HTML-to-PDF conversion
     try {
       const puppeteer = require('puppeteer');
       console.log('🔄 Launching Puppeteer for exact HTML-to-PDF...');
 
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-        ],
-        timeout: 30000,
-      });
+      const browser = await puppeteer.launch(puppeteerLaunchOptions());
 
       try {
         const page = await browser.newPage();
@@ -4215,8 +4307,8 @@ export class DPRService {
           format: 'A4',
           printBackground: true,
           displayHeaderFooter: false,
-          margin: { top: '0', right: '0', bottom: '0', left: '0' },
-          preferCSSPageSize: true,
+          margin: { top: pageMargin, right: pageMargin, bottom: pageMargin, left: pageMargin },
+          preferCSSPageSize: !options?.margin,
           timeout: 120000,
           scale: 1.0,
         });
@@ -4255,13 +4347,16 @@ export class DPRService {
    * Fallback: Generate PDF using PDFKit (if Puppeteer is not available)
    */
   private static async generateClusterDPRPDFWithPDFKit(dpr: any, project: any, language: 'english' | 'telugu'): Promise<Buffer> {
+    if (isIndividualDprRecord(dpr, project)) {
+      return this.generateIndividualDPRPDF(dpr, project, language);
+    }
     return new Promise((resolve, reject) => {
       try {
         const content = dpr.content || {};
         const contentLang = language === 'telugu' 
           ? (content.telugu || content.english || {}) 
           : (content.english || {});
-        
+
         // Get cluster data from content or project stepData
         const clusterData = contentLang.clusterData || dpr.metadata?.clusterData || project.stepData || {};
         
@@ -4461,6 +4556,74 @@ export class DPRService {
         const s1 = clusterData.step1 || {};
         const s11 = clusterData.step11 || {};
         const clusterName = s1.clusterName || project.projectName || 'CLUSTER NAME';
+        const isIndividualDPR = !!(
+          clusterData.isIndividualDPR ||
+          clusterData.metadata?.isIndividualDPR ||
+          dpr.metadata?.isIndividualDPR ||
+          project.projectType === 'individual'
+        );
+        const matchedSchemeCode =
+          clusterData.matchedSchemeCode ||
+          clusterData.metadata?.matchedSchemeCode ||
+          dpr.metadata?.matchedSchemeCode ||
+          null;
+
+        const UPGRADE_SCHEMES = new Set([
+          'PMEGP_2ND', 'SCLCSS', 'AP_TECH_UPGRADE', 'MSE_GIFT', 'PTUAS', 'MSE_SPICE',
+        ]);
+        let coverAction = 'Establishment of Common Facility Centre for';
+        let coverUnder = "under 'Micro Cluster Development Programme'";
+        let coverNameFallback = 'CLUSTER NAME';
+        if (isIndividualDPR) {
+          coverNameFallback = 'UNIT NAME';
+          if (matchedSchemeCode && UPGRADE_SCHEMES.has(matchedSchemeCode)) {
+            coverAction = 'Upgradation of';
+          } else if (matchedSchemeCode === 'ECLGS') {
+            coverAction = 'Working Capital Proposal for';
+          } else if (['ZED', 'LEAN', 'MSME_IPR'].includes(matchedSchemeCode || '')) {
+            coverAction = 'Proposal for';
+          } else if (matchedSchemeCode === 'PMS') {
+            coverAction = 'Marketing Support Proposal for';
+          } else {
+            coverAction = 'Establishment of';
+          }
+          const SCHEME_LABELS: Record<string, string> = {
+            PMEGP: 'PMEGP',
+            PMEGP_2ND: '2nd PMEGP Upgrade Loan',
+            MUDRA: 'PM MUDRA Yojana',
+            STANDUP: 'Stand-Up India',
+            CGTMSE: 'CGTMSE',
+            VISHWAKARMA: 'PM Vishwakarma',
+            PMFME: 'PMFME',
+            SVANIDHI: 'PM SVANidhi',
+            SCLCSS: 'SCLCSS (SC/ST)',
+            AP_TECH_UPGRADE: 'AP Technology Upgradation Subsidy',
+            AP_EDP: 'AP MSME-EDP 4.0',
+            AP_CMEP: 'AP CMEP',
+            AP_FPP: 'AP Food Processing Policy 4.0',
+            ECLGS: 'ECLGS',
+            ZED: 'ZED Certification',
+            LEAN: 'Competitive LEAN',
+            MSME_IPR: 'MSME Innovative (IPR)',
+            PMS: 'Procurement & Marketing Scheme',
+            MSE_GIFT: 'MSE-GIFT',
+            CVY: 'Coir Vikas Yojana',
+            NHDP: 'National Handloom Development Programme',
+            PTUAS: 'PTUAS',
+            PMPDS: 'PMPDS',
+            MSE_SPICE: 'RAMP MSE-SPICE',
+            RAMP_TEAM: 'RAMP TEAM (ONDC)',
+            EPM_NIRYAT: 'EPM Niryat Protsahan',
+            ASPIRE: 'ASPIRE',
+            SCST_HUB: 'National SC/ST Hub',
+            OBMMS: 'AP OBMMS Welfare Loans',
+            AP_PARKS: 'AP MSME-PARKS',
+          };
+          const schemeLabel = matchedSchemeCode
+            ? (SCHEME_LABELS[matchedSchemeCode] || matchedSchemeCode)
+            : 'Bank Term Loan';
+          coverUnder = `under '${schemeLabel}'`;
+        }
         
         // Draw grey box background with diagonal stripes pattern
         const boxX = 50;
@@ -4485,20 +4648,20 @@ export class DPRService {
           align: 'center'
         });
         
-        doc.fontSize(18).font('Helvetica').text('Establishment of Common Facility Centre for', boxX + 25, boxY + 95, {
+        doc.fontSize(18).font('Helvetica').text(coverAction, boxX + 25, boxY + 95, {
           width: boxWidth - 50,
           align: 'center'
         });
         
-        // Cluster name in green
+        // Unit / cluster name in green
         doc.fillColor('#059669'); // Green
-        doc.fontSize(24).font('Helvetica-Bold').text(clusterName.toUpperCase(), boxX + 25, boxY + 130, {
+        doc.fontSize(24).font('Helvetica-Bold').text((clusterName || coverNameFallback).toUpperCase(), boxX + 25, boxY + 130, {
           width: boxWidth - 50,
           align: 'center'
         });
         
         doc.fillColor('#1F2937'); // Back to dark grey
-        doc.fontSize(16).font('Helvetica').text("under 'Micro Cluster Development Programme'", boxX + 25, boxY + 165, {
+        doc.fontSize(16).font('Helvetica').text(coverUnder, boxX + 25, boxY + 165, {
           width: boxWidth - 50,
           align: 'center'
         });
@@ -4749,6 +4912,10 @@ export class DPRService {
       const project = dpr.projectId;
       if (!project) {
         throw new Error('Project not found for DPR');
+      }
+
+      if (isIndividualDprRecord(dpr, project)) {
+        return generateIndividualDprDocx(buildIndividualDocument(dpr, project));
       }
 
       // Safely access content with fallback
@@ -5316,13 +5483,6 @@ export class DPRService {
         return await fs.promises.readFile(filePath, 'utf-8');
       }
 
-      // For PDF and DOCX, use OpenAI's file API to extract text
-      const { default: OpenAI } = await import('openai');
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-
-      // Upload file to OpenAI
       const fileStream = fs.createReadStream(filePath);
       const uploadedFile = await openai.files.create({
         file: fileStream,
@@ -5415,11 +5575,6 @@ export class DPRService {
     suggestions: string[];
   }> {
     try {
-      const { default: OpenAI } = await import('openai');
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-
       const prompt = `Analyze this uploaded DPR (Detailed Project Report) document and extract structured information.
 
 Document Name: ${fileName}

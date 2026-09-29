@@ -13,6 +13,10 @@ import {
 } from 'recharts';
 import { EditableFinancialTable } from './EditableFinancialTable';
 import { useClusterDPRStore } from '@/store/clusterDPRStore';
+import { fieldHitNode } from '@/lib/individualDpr/previewFieldHits';
+import { getIndividualCoverLines } from '@/lib/individualDpr/coverTitle';
+import { PrivateImg } from '@/components/privacy/PrivateImg';
+import { isPrivateFileRef, storedImageRef } from '@/lib/privacy/privateFile';
 
 interface ClusterDPRDocumentViewProps {
   dpr: any;
@@ -20,11 +24,26 @@ interface ClusterDPRDocumentViewProps {
   viewLanguage: 'english' | 'telugu';
   onSectionClick?: (stepNumber: number) => void;
   onDataChange?: (field: string, value: any) => void; // Callback to update store when financial data changes
+  /** When true, wrap displayed field values with data-dpr-field for live-preview scroll hits */
+  trackFieldHits?: boolean;
+  /** Force individual cover / wording even if metadata is missing */
+  isIndividualDPR?: boolean;
 }
 
-export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ dpr, project, viewLanguage, onSectionClick, onDataChange }) => {
+export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({
+  dpr,
+  project,
+  viewLanguage,
+  onSectionClick,
+  onDataChange,
+  trackFieldHits = false,
+  isIndividualDPR: isIndividualProp = false,
+}) => {
   // Get store functions to update data
   const { data: storeData, setStepData } = useClusterDPRStore();
+
+  const fieldHit = (path: string, children: React.ReactNode) =>
+    fieldHitNode(trackFieldHits, path, children);
 
   // Extract cluster data from multiple possible locations
   const clusterData =
@@ -35,6 +54,19 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
     project?.stepData ||
     storeData || // Also check store
     {};
+
+  const isIndividualDPR =
+    isIndividualProp ||
+    !!dpr?.metadata?.isIndividualDPR ||
+    !!clusterData?.isIndividualDPR ||
+    !!clusterData?.metadata?.isIndividualDPR ||
+    project?.projectType === 'individual';
+
+  const matchedSchemeCode =
+    clusterData?.matchedSchemeCode ||
+    clusterData?.metadata?.matchedSchemeCode ||
+    dpr?.metadata?.matchedSchemeCode ||
+    null;
 
   // Use contentRefreshKey to force re-read of content when it changes
   const content = (dpr.content?.[viewLanguage] || dpr.content?.english || {});
@@ -547,7 +579,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
     try {
       const result = await api.generateClusterDPRImage(prompt, sectionType, sectionInfo);
       if (result.success && result.data?.imageUrl) {
-        const imageUrl = result.data.imageUrl;
+        const imageUrl = storedImageRef(result.data);
         setImages({ ...images, [imageId]: imageUrl });
 
         // Save image to project database
@@ -585,15 +617,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
     try {
       const result = await api.uploadClusterDPRImage(file);
       if (result.success && result.data?.imageUrl) {
-        // Use Cloudinary URL directly (already full URL) or construct local URL
-        const imageUrl = result.data.imageUrl.startsWith('http')
-          ? result.data.imageUrl
-          : (() => {
-            const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-            const serverBaseUrl = apiBaseUrl.replace('/api', '');
-            return `${serverBaseUrl}${result.data.imageUrl}`;
-          })();
-
+        const imageUrl = storedImageRef(result.data);
         setImages({ ...images, [imageId]: imageUrl });
 
         // Store Cloudinary public ID for future deletion if available
@@ -636,46 +660,25 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
       return;
     }
 
-    // Check if it's a Cloudinary URL
-    const isCloudinaryUrl = imageUrl.includes('cloudinary.com') || imageUrl.includes('res.cloudinary.com');
-
-    if (isCloudinaryUrl) {
+    if (isPrivateFileRef(imageUrl) || imageUrl.includes('cloudinary.com')) {
       try {
-        // Extract public ID from Cloudinary URL
-        const urlParts = imageUrl.split('/');
-        const uploadIndex = urlParts.findIndex(part => part === 'upload');
-        if (uploadIndex !== -1 && uploadIndex < urlParts.length - 1) {
-          // Extract public ID (format: v1234567890/folder/public_id.ext)
-          const publicIdPath = urlParts.slice(uploadIndex + 2).join('/').replace(/\.[^/.]+$/, '');
-
-          // Call API to delete from Cloudinary
-          const result = await api.deleteClusterDPRImage(imageUrl, publicIdPath);
-
-          if (result.success) {
-            const newImages = { ...images };
-            delete newImages[imageId];
-            setImages(newImages);
-            toast.success('Image removed and deleted from storage');
-          } else {
-            throw new Error(result.message || 'Failed to delete image');
-          }
-        } else {
-          // Fallback: just remove from UI
-          const newImages = { ...images };
-          delete newImages[imageId];
-          setImages(newImages);
-          toast.success('Image removed');
-        }
-      } catch (error: any) {
-        console.error('Error deleting image from Cloudinary:', error);
-        toast.error('Failed to delete image from storage, but removed from view');
-        // Still remove from UI even if deletion fails
+        const result = await api.deleteClusterDPRImage(imageUrl);
         const newImages = { ...images };
         delete newImages[imageId];
         setImages(newImages);
+        if (result.success) {
+          toast.success('Image removed and deleted from storage');
+        } else {
+          toast.success('Image removed');
+        }
+      } catch (error: any) {
+        console.error('Error deleting image:', error);
+        const newImages = { ...images };
+        delete newImages[imageId];
+        setImages(newImages);
+        toast.success('Image removed');
       }
     } else {
-      // Not a Cloudinary URL, just remove from UI
       const newImages = { ...images };
       delete newImages[imageId];
       setImages(newImages);
@@ -1179,14 +1182,13 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           >
             {hasImage ? (
               <>
-                <img
+                <PrivateImg
                   src={currentImage}
                   alt={alt}
                   className="w-full h-auto object-contain"
                   style={{ maxHeight: '300px' }}
                   crossOrigin="anonymous"
                   onError={(e) => {
-                    // Fallback to placeholder
                     e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBQbGFjZWhvbGRlcjwvdGV4dD48L3N2Zz4=';
                   }}
                 />
@@ -1648,7 +1650,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                           );
 
                           if (result.success && result.data?.imageUrl) {
-                            const imageUrl = result.data.imageUrl;
+                            const imageUrl = storedImageRef(result.data);
                             setImages(prev => ({ ...prev, [imageConfig.imageId]: imageUrl }));
 
                             // Save image to project database
@@ -1728,15 +1730,41 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
               <h2 className="text-2xl font-semibold text-center " style={{ color: '#1F2937' }}>
                 On
               </h2>
-              <h2 className="text-2xl font-semibold text-center" style={{ color: '#1F2937' }}>
-                Establishment of Common Facility Centre for
-              </h2>
-              <h2 className="text-3xl font-bold text-center uppercase" style={{ color: '#059669', letterSpacing: '0.05em' }}>
-                {s1.clusterName || 'CLUSTER NAME'}
-              </h2>
-              <p className="text-lg font-semibold text-center items-center px-32" style={{ color: '#1F2937' }}>
-                under 'Micro Cluster Development Programme'
-              </p>
+              {(() => {
+                if (isIndividualDPR) {
+                  const cover = getIndividualCoverLines(
+                    s1,
+                    matchedSchemeCode,
+                    viewLanguage === 'telugu' ? 'te' : 'en'
+                  );
+                  return (
+                    <>
+                      <h2 className="text-2xl font-semibold text-center" style={{ color: '#1F2937' }}>
+                        {cover.actionLine}
+                      </h2>
+                      <h2 className="text-3xl font-bold text-center uppercase" style={{ color: '#059669', letterSpacing: '0.05em' }}>
+                        {fieldHit('step1.clusterName', cover.unitName || 'UNIT NAME')}
+                      </h2>
+                      <p className="text-lg font-semibold text-center items-center px-32" style={{ color: '#1F2937' }}>
+                        {cover.underLine}
+                      </p>
+                    </>
+                  );
+                }
+                return (
+                  <>
+                    <h2 className="text-2xl font-semibold text-center" style={{ color: '#1F2937' }}>
+                      Establishment of Common Facility Centre for
+                    </h2>
+                    <h2 className="text-3xl font-bold text-center uppercase" style={{ color: '#059669', letterSpacing: '0.05em' }}>
+                      {fieldHit('step1.clusterName', s1.clusterName || 'CLUSTER NAME')}
+                    </h2>
+                    <p className="text-lg font-semibold text-center items-center px-32" style={{ color: '#1F2937' }}>
+                      under 'Micro Cluster Development Programme'
+                    </p>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
@@ -1745,12 +1773,12 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
             {renderImage(
               'cover-image',
               '',
-              'Cluster Cover Image',
+              isIndividualDPR ? 'Unit Cover Image' : 'Cluster Cover Image',
               '',
               'coverPage',
               { clusterName: s1.clusterName, location: s1.location, district: s1.district },
               //add products and services list to the prompt
-              `Professional cover image showcasing the key products manufactured and developed by ${s1.clusterName || 'the cluster'} without text, labels, diagrams, or watermarks. The products and services list is: ${s1.majorProducts || 'N/A'}.`
+              `Professional cover image showcasing the key products manufactured and developed by ${s1.clusterName || (isIndividualDPR ? 'the unit' : 'the cluster')} without text, labels, diagrams, or watermarks. The products and services list is: ${s1.majorProducts || 'N/A'}.`
             )}
           </div>
 
@@ -1789,8 +1817,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 </p>
                 <div>
                   <p className="text-sm" style={{ color: '#1F2937' }}>
-                    {s1.clusterName + ", " || 'Cluster Name'}
-                    {s1.location || 'Location'}
+                    {fieldHit('step1.clusterName', s1.clusterName || 'Cluster Name')}
+                    {s1.clusterName ? ', ' : null}
+                    {fieldHit('step1.location', s1.location || 'Location')}
                   </p>
                 </div>
               </div>
@@ -2293,14 +2322,14 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           {renderTable(
             ['Particulars', 'Details'],
             [
-              ['Name of the cluster', `${s1.clusterName || 'N/A'}, ${s1.district || 'N/A'} District`],
-              ['Location & Spread of the cluster', s1.geographicalSpread || s1.location || 'N/A'],
-              ['Product range', s1.majorProducts || 'N/A'],
+              ['Name of the cluster', <>{fieldHit('step1.clusterName', s1.clusterName || 'N/A')}, {fieldHit('step1.district', s1.district || 'N/A')} District</>],
+              ['Location & Spread of the cluster', fieldHit('step1.geographicalSpread', s1.geographicalSpread || s1.location || 'N/A')],
+              ['Product range', fieldHit('step1.majorProducts', s1.majorProducts || 'N/A')],
               ['Existing cluster scenario', 'See table below'],
-              ['Existing employment in the Cluster', `${(s1.employmentPerUnit?.lessThan5 || 0) + (s1.employmentPerUnit?.between5And10 || 0) + (s1.employmentPerUnit?.moreThan10 || 0)} workers (Male workers: ${s1.employmentPerUnit?.male || 0}, Female workers: ${s1.employmentPerUnit?.female || 0})`],
-              ['Name of the SPV', s11.spvName || 'N/A'],
-              ['Legal Status', s11.legalStatus || 'N/A'],
-              ['Number of SPV members(Micro unit holders)', `${(s11.memberUnits?.length || 0)} member units`],
+              ['Existing employment in the Cluster', fieldHit('step1.employmentPerUnit', `${(s1.employmentPerUnit?.lessThan5 || 0) + (s1.employmentPerUnit?.between5And10 || 0) + (s1.employmentPerUnit?.moreThan10 || 0)} workers (Male workers: ${s1.employmentPerUnit?.male || 0}, Female workers: ${s1.employmentPerUnit?.female || 0})`)],
+              ['Name of the SPV', fieldHit('step11.spvName', s11.spvName || 'N/A')],
+              ['Legal Status', fieldHit('step11.legalStatus', s11.legalStatus || 'N/A')],
+              ['Number of SPV members(Micro unit holders)', fieldHit('step11.memberUnits', `${(s11.memberUnits?.length || 0)} member units`)],
             ]
           )}
         </div>
@@ -2325,25 +2354,25 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 if (s1.enterpriseCount?.micro && s1.enterpriseCount.micro > 0) {
                   rows.push([
                     'Micro Enterprises',
-                    s1.enterpriseCount.micro.toString(),
-                    s4.productionCapacity || s14.annualProductionVolume ? `${s14.annualProductionVolume || 'N/A'}` : 'N/A',
-                    s1.turnoverPerUnit ? `₹${((s1.turnoverPerUnit * s1.enterpriseCount.micro)).toFixed(2)} Lakhs` : 'N/A'
+                    fieldHit('step1.enterpriseCount.micro', s1.enterpriseCount.micro.toString()),
+                    s4.productionCapacity || s14.annualProductionVolume ? fieldHit('step14.annualProductionVolume', `${s14.annualProductionVolume || 'N/A'}`) : 'N/A',
+                    s1.turnoverPerUnit ? fieldHit('step1.turnoverPerUnit', `₹${((s1.turnoverPerUnit * s1.enterpriseCount.micro)).toFixed(2)} Lakhs`) : 'N/A'
                   ]);
                 }
                 if (s1.enterpriseCount?.small && s1.enterpriseCount.small > 0) {
                   rows.push([
                     'Small Enterprises',
-                    s1.enterpriseCount.small.toString(),
+                    fieldHit('step1.enterpriseCount.small', s1.enterpriseCount.small.toString()),
                     'N/A',
-                    s1.turnoverPerUnit ? `₹${((s1.turnoverPerUnit * s1.enterpriseCount.small)).toFixed(2)} Lakhs` : 'N/A'
+                    s1.turnoverPerUnit ? fieldHit('step1.turnoverPerUnit', `₹${((s1.turnoverPerUnit * s1.enterpriseCount.small)).toFixed(2)} Lakhs`) : 'N/A'
                   ]);
                 }
                 if (s1.enterpriseCount?.medium && s1.enterpriseCount.medium > 0) {
                   rows.push([
                     'Medium Enterprises',
-                    s1.enterpriseCount.medium.toString(),
+                    fieldHit('step1.enterpriseCount.medium', s1.enterpriseCount.medium.toString()),
                     'N/A',
-                    s1.turnoverPerUnit ? `₹${((s1.turnoverPerUnit * s1.enterpriseCount.medium)).toFixed(2)} Lakhs` : 'N/A'
+                    s1.turnoverPerUnit ? fieldHit('step1.turnoverPerUnit', `₹${((s1.turnoverPerUnit * s1.enterpriseCount.medium)).toFixed(2)} Lakhs`) : 'N/A'
                   ]);
                 }
 
@@ -2373,7 +2402,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
             {s7.technologyGaps && (
               <div className="mb-4">
                 <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-                  <strong>Technology:</strong> {s7.technologyGaps}
+                  <strong>Technology:</strong> {fieldHit('step7.technologyGaps', s7.technologyGaps)}
                 </p>
               </div>
             )}
@@ -2390,21 +2419,21 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
             {s7.infrastructureGaps && (
               <div className="mb-4">
                 <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-                  <strong>Infrastructure:</strong> {s7.infrastructureGaps}
+                  <strong>Infrastructure:</strong> {fieldHit('step7.infrastructureGaps', s7.infrastructureGaps)}
                 </p>
               </div>
             )}
             {s7.skillGaps && (
               <div className="mb-4">
                 <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-                  <strong>Skill:</strong> {s7.skillGaps}
+                  <strong>Skill:</strong> {fieldHit('step7.skillGaps', s7.skillGaps)}
                 </p>
               </div>
             )}
             {s7.marketingGaps && (
               <div className="mb-4">
                 <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-                  <strong>Marketing:</strong> {s7.marketingGaps}
+                  <strong>Marketing:</strong> {fieldHit('step7.marketingGaps', s7.marketingGaps)}
                 </p>
               </div>
             )}
@@ -2421,7 +2450,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
             {s7.financialGaps && (
               <div className="mb-4">
                 <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-                  <strong>Finance:</strong> {s7.financialGaps}
+                  <strong>Finance:</strong> {fieldHit('step7.financialGaps', s7.financialGaps)}
                 </p>
               </div>
             )}
@@ -2430,7 +2459,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           <div className="my-6">
             <h4 className="text-lg font-bold mb-3" style={{ color: '#1F2937' }}>Project Rationale</h4>
             <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-              {s7.justificationForIntervention || 'N/A'}
+              {fieldHit('step7.justificationForIntervention', s7.justificationForIntervention || 'N/A')}
             </p>
           </div>
         </div>
@@ -2444,12 +2473,12 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
             <h4 className="text-lg font-bold mb-3" style={{ color: '#1F2937' }}>Proposed Interventions</h4>
             {s9.interventionType && (
               <p className="text-sm mb-2" style={{ color: '#1F2937' }}>
-                <strong>Intervention Type:</strong> {s9.interventionType}
+                <strong>Intervention Type:</strong> {fieldHit('step9.interventionType', s9.interventionType)}
               </p>
             )}
             {s9.description ? (
               <p className="text-sm text-justify leading-relaxed" style={{ color: '#1F2937' }}>
-                {s9.description}
+                {fieldHit('step9.description', s9.description)}
               </p>
             ) : (
               <p className="text-sm text-gray-500" style={{ color: '#1F2937' }}>N/A</p>
@@ -2493,12 +2522,12 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 {renderTable(
                   ['Parameter', 'Details'],
                   [
-                    ['Cluster Name', s1.clusterName || 'N/A'],
-                    ['District', s1.district || 'N/A'],
-                    ['Location', s1.location || 'N/A'],
-                    ['Geographical Spread', s1.geographicalSpread || 'N/A'],
-                    ['Nature of Business', s1.natureOfBusiness || 'N/A'],
-                    ['Major Products', s1.majorProducts || 'N/A'],
+                    ['Cluster Name', fieldHit('step1.clusterName', s1.clusterName || 'N/A')],
+                    ['District', fieldHit('step1.district', s1.district || 'N/A')],
+                    ['Location', fieldHit('step1.location', s1.location || 'N/A')],
+                    ['Geographical Spread', fieldHit('step1.geographicalSpread', s1.geographicalSpread || 'N/A')],
+                    ['Nature of Business', fieldHit('step1.natureOfBusiness', s1.natureOfBusiness || 'N/A')],
+                    ['Major Products', fieldHit('step1.majorProducts', s1.majorProducts || 'N/A')],
                   ]
                 )}
               </div>
@@ -2507,9 +2536,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 {renderTable(
                   ['Category', 'Count'],
                   [
-                    ['Micro Enterprises', s1.enterpriseCount?.micro || 0],
-                    ['Small Enterprises', s1.enterpriseCount?.small || 0],
-                    ['Medium Enterprises', s1.enterpriseCount?.medium || 0],
+                    ['Micro Enterprises', fieldHit('step1.enterpriseCount.micro', s1.enterpriseCount?.micro || 0)],
+                    ['Small Enterprises', fieldHit('step1.enterpriseCount.small', s1.enterpriseCount?.small || 0)],
+                    ['Medium Enterprises', fieldHit('step1.enterpriseCount.medium', s1.enterpriseCount?.medium || 0)],
                     ['Total Enterprises', (s1.enterpriseCount?.micro || 0) + (s1.enterpriseCount?.small || 0) + (s1.enterpriseCount?.medium || 0)],
                   ]
                 )}
@@ -2519,11 +2548,11 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 {renderTable(
                   ['Category', 'Count'],
                   [
-                    ['Units with < 5 employees', s1.employmentPerUnit?.lessThan5 || 0],
-                    ['Units with 5-10 employees', s1.employmentPerUnit?.between5And10 || 0],
-                    ['Units with > 10 employees', s1.employmentPerUnit?.moreThan10 || 0],
-                    ['Male Workers', s1.employmentPerUnit?.male || 0],
-                    ['Female Workers', s1.employmentPerUnit?.female || 0],
+                    ['Units with < 5 employees', fieldHit('step1.employmentPerUnit.lessThan5', s1.employmentPerUnit?.lessThan5 || 0)],
+                    ['Units with 5-10 employees', fieldHit('step1.employmentPerUnit.between5And10', s1.employmentPerUnit?.between5And10 || 0)],
+                    ['Units with > 10 employees', fieldHit('step1.employmentPerUnit.moreThan10', s1.employmentPerUnit?.moreThan10 || 0)],
+                    ['Male Workers', fieldHit('step1.employmentPerUnit.male', s1.employmentPerUnit?.male || 0)],
+                    ['Female Workers', fieldHit('step1.employmentPerUnit.female', s1.employmentPerUnit?.female || 0)],
                   ]
                 )}
               </div>
@@ -2532,10 +2561,10 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 {renderTable(
                   ['Indicator', 'Value'],
                   [
-                    ['Average Investment per Unit', s1.investmentPerUnit ? `₹${s1.investmentPerUnit.toFixed(2)} Lakhs` : 'N/A'],
-                    ['Average Turnover per Unit', s1.turnoverPerUnit ? `₹${s1.turnoverPerUnit.toFixed(2)} Lakhs` : 'N/A'],
-                    ['Market Served - Domestic', s1.marketServed?.domestic ? `${s1.marketServed.domestic}%` : 'N/A'],
-                    ['Market Served - Export', s1.marketServed?.export ? `${s1.marketServed.export}%` : 'N/A'],
+                    ['Average Investment per Unit', fieldHit('step1.investmentPerUnit', s1.investmentPerUnit ? `₹${s1.investmentPerUnit.toFixed(2)} Lakhs` : 'N/A')],
+                    ['Average Turnover per Unit', fieldHit('step1.turnoverPerUnit', s1.turnoverPerUnit ? `₹${s1.turnoverPerUnit.toFixed(2)} Lakhs` : 'N/A')],
+                    ['Market Served - Domestic', fieldHit('step1.marketServed.domestic', s1.marketServed?.domestic ? `${s1.marketServed.domestic}%` : 'N/A')],
+                    ['Market Served - Export', fieldHit('step1.marketServed.export', s1.marketServed?.export ? `${s1.marketServed.export}%` : 'N/A')],
                   ]
                 )}
               </div>
@@ -2555,9 +2584,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
             </div>
           ) : (
             <div className="text-sm leading-relaxed space-y-4">
-              <p><strong>1.1 Sector/Industry Type:</strong> {s2.sectorType || 'N/A'}</p>
+              <p><strong>1.1 Sector/Industry Type:</strong> {fieldHit('step2.sectorType', s2.sectorType || 'N/A')}</p>
               <p><strong>1.2 Sector Description:</strong></p>
-              <p className="text-justify">{s2.sectorDescription || 'N/A'}</p>
+              <p className="text-justify">{fieldHit('step2.sectorDescription', s2.sectorDescription || 'N/A')}</p>
             </div>
           )}
         </div>
@@ -2569,9 +2598,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           {/* {renderSectionTitle('1. INTRODUCTION (Continued)', 2)} */}
           <div className="text-sm leading-relaxed space-y-4">
             <p><strong>1.3 National Importance:</strong></p>
-            <p className="text-justify">{s2.nationalImportance || 'N/A'}</p>
+            <p className="text-justify">{fieldHit('step2.nationalImportance', s2.nationalImportance || 'N/A')}</p>
             <p><strong>1.4 State-level Importance:</strong></p>
-            <p className="text-justify">{s2.stateLevelImportance || 'N/A'}</p>
+            <p className="text-justify">{fieldHit('step2.stateLevelImportance', s2.stateLevelImportance || 'N/A')}</p>
           </div>
         </div>
       )}
@@ -2664,8 +2693,8 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                   {renderTable(
                     ['Parameter', 'Details'],
                     [
-                      ['Availability', s3.rawMaterialAvailability || 'N/A'],
-                      ['Quantity', s3.rawMaterialQuantity || 'N/A'],
+                      ['Availability', fieldHit('step3.rawMaterialAvailability', s3.rawMaterialAvailability || 'N/A')],
+                      ['Quantity', fieldHit('step3.rawMaterialQuantity', s3.rawMaterialQuantity || 'N/A')],
                     ]
                   )}
                 </div>
@@ -2713,9 +2742,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                   {renderTable(
                     ['Mode', 'Details'],
                     [
-                      ['Road', s3.connectivity?.road || 'N/A'],
-                      ['Rail', s3.connectivity?.rail || 'N/A'],
-                      ['Port', s3.connectivity?.port || 'N/A'],
+                      ['Road', fieldHit('step3.connectivity.road', s3.connectivity?.road || 'N/A')],
+                      ['Rail', fieldHit('step3.connectivity.rail', s3.connectivity?.rail || 'N/A')],
+                      ['Port', fieldHit('step3.connectivity.port', s3.connectivity?.port || 'N/A')],
                     ]
                   )}
                 </div>
@@ -2761,8 +2790,8 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 ['Parameter', 'Details'],
                 [
                   ['No. of Units', (s1.enterpriseCount?.micro || 0) + (s1.enterpriseCount?.small || 0) + (s1.enterpriseCount?.medium || 0)],
-                  ['Production Capacity', s4.productionCapacity || 'N/A'],
-                  ['Technology Level', s4.technologyLevel || 'N/A'],
+                  ['Production Capacity', fieldHit('step4.productionCapacity', s4.productionCapacity || 'N/A')],
+                  ['Technology Level', fieldHit('step4.technologyLevel', s4.technologyLevel || 'N/A')],
                 ]
               )}
             </div>
@@ -2800,9 +2829,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
               {renderTable(
                 ['Parameter', 'Details'],
                 [
-                  ['Year of Establishment', s4.yearOfEstablishment || 'N/A'],
-                  ['Type of Units', s4.typeOfUnits || 'N/A'],
-                  ['Present Activities', s4.presentActivities || 'N/A'],
+                  ['Year of Establishment', fieldHit('step4.yearOfEstablishment', s4.yearOfEstablishment || 'N/A')],
+                  ['Type of Units', fieldHit('step4.typeOfUnits', s4.typeOfUnits || 'N/A')],
+                  ['Present Activities', fieldHit('step4.presentActivities', s4.presentActivities || 'N/A')],
                 ]
               )}
             </div>
@@ -3075,9 +3104,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           {renderTable(
             ['Area', 'Existing Gap'],
             [
-              ['Technology', enhancedContent['gapAnalysis-tech'] || s7.technologyGaps || 'N/A'],
-              ['Infrastructure', enhancedContent['gapAnalysis-infra'] || s7.infrastructureGaps || 'N/A'],
-              ['Skill', enhancedContent['gapAnalysis-skill'] || s7.skillGaps || 'N/A'],
+              ['Technology', enhancedContent['gapAnalysis-tech'] || fieldHit('step7.technologyGaps', s7.technologyGaps || 'N/A')],
+              ['Infrastructure', enhancedContent['gapAnalysis-infra'] || fieldHit('step7.infrastructureGaps', s7.infrastructureGaps || 'N/A')],
+              ['Skill', enhancedContent['gapAnalysis-skill'] || fieldHit('step7.skillGaps', s7.skillGaps || 'N/A')],
             ]
           )}
         </div>,
@@ -3091,13 +3120,13 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           {renderTable(
             ['Area', 'Existing Gap'],
             [
-              ['Marketing', enhancedContent['gapAnalysis-marketing'] || s7.marketingGaps || 'N/A'],
-              ['Finance', enhancedContent['gapAnalysis-finance'] || s7.financialGaps || 'N/A'],
+              ['Marketing', enhancedContent['gapAnalysis-marketing'] || fieldHit('step7.marketingGaps', s7.marketingGaps || 'N/A')],
+              ['Finance', enhancedContent['gapAnalysis-finance'] || fieldHit('step7.financialGaps', s7.financialGaps || 'N/A')],
             ]
           )}
           <div className="my-6">
             <h3 className="text-xl font-semibold mb-3">Justification for Intervention</h3>
-            <p className="text-sm text-justify leading-relaxed">{s7.justificationForIntervention || 'N/A'}</p>
+            <p className="text-sm text-justify leading-relaxed">{fieldHit('step7.justificationForIntervention', s7.justificationForIntervention || 'N/A')}</p>
           </div>
         </div>,
         { borderStyle: 'double' }
@@ -3117,10 +3146,10 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                   {renderTable(
                     ['Parameter', 'Details'],
                     [
-                      ['CFC Name', s10.name || 'N/A'],
-                      ['Location', s10.location || 'N/A'],
-                      ['Land Area', s10.landDetails || 'N/A'],
-                      ['Civil Works / Built-up Area', s10.civilWorks || 'N/A'],
+                      ['CFC Name', fieldHit('step10.name', s10.name || 'N/A')],
+                      ['Location', fieldHit('step10.location', s10.location || 'N/A')],
+                      ['Land Area', fieldHit('step10.landDetails', s10.landDetails || 'N/A')],
+                      ['Civil Works / Built-up Area', fieldHit('step10.civilWorks', s10.civilWorks || 'N/A')],
                     ]
                   )}
                 </div>
@@ -3135,11 +3164,11 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
               <div className="space-y-6 text-sm">
                 <div>
                   <h3 className="text-xl font-semibold mb-3">7.2 Plant & Machinery</h3>
-                  <p className="text-justify leading-relaxed">{s10.plantAndMachinery || 'N/A'}</p>
+                  <p className="text-justify leading-relaxed">{fieldHit('step10.plantAndMachinery', s10.plantAndMachinery || 'N/A')}</p>
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-3">7.3 Manufacturing Process</h3>
-                  <p className="text-justify leading-relaxed">{s10.manufacturingProcess || 'N/A'}</p>
+                  <p className="text-justify leading-relaxed">{fieldHit('step10.manufacturingProcess', s10.manufacturingProcess || 'N/A')}</p>
                 </div>
               </div>
             </div>
@@ -3152,16 +3181,16 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
               <div className="-mt-6 text-sm">
                 <div>
                   <h3 className="text-xl font-semibold mb-3">7.4 Capacity</h3>
-                  <p>{s10.capacity || 'N/A'}</p>
+                  <p>{fieldHit('step10.capacity', s10.capacity || 'N/A')}</p>
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-3">7.5 Requirements</h3>
                   {renderTable(
                     ['Requirement', 'Details'],
                     [
-                      ['Power Requirements', s10.powerRequirements || 'N/A'],
-                      ['Water Requirements', s10.waterRequirements || 'N/A'],
-                      ['Manpower Requirements', s10.manpowerRequirements || 'N/A'],
+                      ['Power Requirements', fieldHit('step10.powerRequirements', s10.powerRequirements || 'N/A')],
+                      ['Water Requirements', fieldHit('step10.waterRequirements', s10.waterRequirements || 'N/A')],
+                      ['Manpower Requirements', fieldHit('step10.manpowerRequirements', s10.manpowerRequirements || 'N/A')],
                     ]
                   )}
                 </div>
@@ -3219,9 +3248,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                   {renderTable(
                     ['Parameter', 'Details'],
                     [
-                      ['Name', s11.spvName || 'N/A'],
-                      ['Legal Status', s11.legalStatus || 'N/A'],
-                      ['Year of Incorporation', s11.yearOfIncorporation || 'N/A'],
+                      ['Name', fieldHit('step11.spvName', s11.spvName || 'N/A')],
+                      ['Legal Status', fieldHit('step11.legalStatus', s11.legalStatus || 'N/A')],
+                      ['Year of Incorporation', fieldHit('step11.yearOfIncorporation', s11.yearOfIncorporation || 'N/A')],
                       ['Members', (s11.memberUnits?.length || 0) + ' member units'],
                     ]
                   )}
@@ -3487,8 +3516,8 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 {renderTable(
                   ['Parameter', 'Value'],
                   [
-                    ['Annual Production Volume', s14.annualProductionVolume ? `${s14.annualProductionVolume.toLocaleString('en-IN')} units` : 'N/A'],
-                    ['Annual Sales Realization', s14.annualSalesRealization ? `₹${s14.annualSalesRealization.toFixed(2)} Lakhs` : 'N/A'],
+                    ['Annual Production Volume', fieldHit('step14.annualProductionVolume', s14.annualProductionVolume ? `${s14.annualProductionVolume.toLocaleString('en-IN')} units` : 'N/A')],
+                    ['Annual Sales Realization', fieldHit('step14.annualSalesRealization', s14.annualSalesRealization ? `₹${s14.annualSalesRealization.toFixed(2)} Lakhs` : 'N/A')],
                   ]
                 )}
               </div>
@@ -3537,9 +3566,9 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                     {renderTable(
                       ['Indicator', 'Value'],
                       [
-                        ['Break-even Point', s15.breakEvenPoint ? `${s15.breakEvenPoint}%` : 'N/A'],
-                        ['IRR', s15.irr ? `${s15.irr}%` : 'N/A'],
-                        ['NPV', s15.npv ? `₹${s15.npv.toFixed(2)} Lakhs` : 'N/A'],
+                        ['Break-even Point', fieldHit('step15.breakEvenPoint', s15.breakEvenPoint ? `${s15.breakEvenPoint}%` : 'N/A')],
+                        ['IRR', fieldHit('step15.irr', s15.irr ? `${s15.irr}%` : 'N/A')],
+                        ['NPV', fieldHit('step15.npv', s15.npv ? `₹${s15.npv.toFixed(2)} Lakhs` : 'N/A')],
                       ],
                       'Financial Indicators Summary',
                       undefined
@@ -3553,7 +3582,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                   {s15.sensitivityAnalysis && (
                     <div>
                       <h3 className="text-xl font-semibold mb-3">10.5 Sensitivity Analysis</h3>
-                      <p className="text-justify leading-relaxed">{s15.sensitivityAnalysis}</p>
+                      <p className="text-justify leading-relaxed">{fieldHit('step15.sensitivityAnalysis', s15.sensitivityAnalysis)}</p>
                     </div>
                   )}
                 </>
@@ -3593,7 +3622,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
               {s16.startDate && (
                 <div>
                   <h3 className="text-xl font-semibold mb-3" style={{ color: '#1F2937' }}>10.5.1 Project Start Date</h3>
-                  <p className="text-justify leading-relaxed">{s16.startDate}</p>
+                  <p className="text-justify leading-relaxed">{fieldHit('step16.startDate', s16.startDate)}</p>
                 </div>
               )}
               {s16.milestones && s16.milestones.length > 0 && (
@@ -3613,7 +3642,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
               {s16.totalImplementationPeriod && (
                 <div>
                   <h3 className="text-xl font-semibold mb-3" style={{ color: '#1F2937' }}>10.5.3 Total Implementation Period</h3>
-                  <p className="text-justify leading-relaxed">{s16.totalImplementationPeriod}</p>
+                  <p className="text-justify leading-relaxed">{fieldHit('step16.totalImplementationPeriod', s16.totalImplementationPeriod)}</p>
                 </div>
               )}
             </div>
@@ -3649,7 +3678,7 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
           {renderTable(
             ['Parameter', 'Value'],
             [
-              ['Employment', s17.employmentGeneration || 0],
+              ['Employment', fieldHit('step17.employmentGeneration', s17.employmentGeneration || 0)],
               ['Turnover', `₹${(s17.turnoverGrowth || 0).toFixed(2)} Lakhs`],
               ['Export Growth', `${s17.exportGrowth || 0}%`],
               ['Income Enhancement', `${s17.incomeEnhancement || 0}%`],
@@ -5359,126 +5388,43 @@ export const ClusterDPRDocumentView: React.FC<ClusterDPRDocumentViewProps> = ({ 
                 });
               }
 
-              return annexureFiles.map((annexure, idx) => {
-                const fileUrl = getFileUrl(annexure.file);
-                const fileName = typeof annexure.file === 'string' ? annexure.file : annexure.file?.name || `Document ${annexure.index}`;
-                const isImage = isImageFile(fileName);
-                const isPdf = isPdfFile(fileName);
-
-                // Debug logging
-                if (fileUrl) {
-                  console.log(`📄 Annexure ${annexure.index} (${annexure.title}):`, {
-                    originalFile: annexure.file,
-                    fileName,
-                    fileUrl,
-                    isCloudinary: fileUrl.includes('cloudinary.com'),
-                    isStaticRoute: fileUrl.includes('/uploads/'),
-                  });
-                } else {
-                  console.warn(`⚠️ No file URL for Annexure ${annexure.index} (${annexure.title}):`, annexure.file);
-                }
-
-                return (
-                  <div
-                    key={idx}
-                    className="p-12 border-b-4 border-gray-800 page-break"
-                    style={{
-                      pageBreakAfter: idx < annexureFiles.length - 1 ? 'always' : 'auto',
-                      padding: '2cm',
-                      minHeight: '29.7cm',
-                      fontFamily: 'Times New Roman, serif'
-                    }}
-                  >
-                    <div className="mb-4">
-                      <h3 className="text-2xl font-bold mb-2" style={{ color: '#1F2937' }}>
-                        Annexure {annexure.index}: {annexure.title}
-                      </h3>
-                    </div>
-
-                    {fileUrl ? (
-                      <div className="w-full" style={{ minHeight: 'calc(29.7cm - 8cm)' }}>
-                        {isImage ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <img
-                              src={fileUrl}
-                              alt={annexure.title}
-                              className="max-w-full max-h-full object-contain"
-                              style={{ maxHeight: 'calc(29.7cm - 8cm)' }}
-                              onError={(e) => {
-                                console.error('Failed to load image:', fileUrl);
-                                e.currentTarget.style.display = 'none';
-                                const errorDiv = document.createElement('div');
-                                errorDiv.className = 'text-center text-gray-500';
-                                errorDiv.textContent = 'File could not be loaded. Please check the file path.';
-                                e.currentTarget.parentElement?.appendChild(errorDiv);
-                              }}
-                            />
-                          </div>
-                        ) : isPdf ? (
-                          <div className="w-full h-full" style={{ minHeight: 'calc(29.7cm - 8cm)' }}>
-                            {/* For Cloudinary PDFs, show a professional document card since direct embedding has CORS issues */}
-                            {fileUrl.includes('cloudinary.com') ? (
-                              <PDFViewer url={fileUrl} fileName={fileName} />
-                            ) : (
-                              <iframe
-                                src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                                className="w-full border-0"
-                                style={{
-                                  minHeight: 'calc(29.7cm - 8cm)',
-                                  height: 'calc(29.7cm - 8cm)',
-                                }}
-                                title={`${annexure.title} PDF`}
-                                onLoad={() => {
-                                  console.log(`✅ Successfully loaded PDF: ${fileName}`);
-                                }}
-                                onError={(e) => {
-                                  console.error('❌ Failed to load PDF iframe:', {
-                                    fileUrl,
-                                    fileName,
-                                    originalFile: annexure.file,
-                                  });
-                                  // Show error message
-                                  const iframeElement = e.currentTarget;
-                                  const parent = iframeElement.parentElement;
-                                  if (parent) {
-                                    iframeElement.style.display = 'none';
-                                    const errorDiv = document.createElement('div');
-                                    errorDiv.className = 'text-center p-8 border-2 border-red-300 rounded-lg bg-red-50';
-                                    errorDiv.innerHTML = `
-                                    <p class="font-bold text-red-700 mb-2">Failed to load document</p>
-                                    <p class="text-sm text-red-600 mb-1">File: ${fileName}</p>
-                                    <p class="text-xs text-red-500 mb-4">URL: ${fileUrl}</p>
-                                    <p class="text-xs text-gray-600">Please check if the file exists at the specified location.</p>
-                                  `;
-                                    parent.appendChild(errorDiv);
-                                  }
-                                }}
-                              />
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg" style={{ minHeight: 'calc(29.7cm - 8cm)' }}>
-                            <p className="text-gray-500 mb-2">Document Preview</p>
-                            <a
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline"
-                            >
-                              Click to view: {fileName}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg" style={{ minHeight: 'calc(29.7cm - 8cm)' }}>
-                        <p className="text-gray-500">File not available or path not found</p>
-                        <p className="text-sm text-gray-400 mt-2">{fileName}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              });
+              return (
+                <div
+                  className="p-12 border-b-4 border-gray-800 page-break"
+                  style={{
+                    padding: '2cm',
+                    minHeight: '29.7cm',
+                    fontFamily: 'Times New Roman, serif',
+                  }}
+                >
+                  <h3 className="text-2xl font-bold mb-4" style={{ color: '#1F2937' }}>
+                    Annexures — document status
+                  </h3>
+                  <p className="text-sm mb-6" style={{ color: '#4B5563' }}>
+                    Identity and supporting scans are stored privately. This report shows Uploaded or Pending only. Attach originals at the bank or DIC.
+                  </p>
+                  {annexureFiles.length === 0 ? (
+                    <p className="text-sm text-gray-500">No annexure files marked as uploaded.</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="text-left py-2 border-b">Document</th>
+                          <th className="text-left py-2 border-b">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {annexureFiles.map((annexure, idx) => (
+                          <tr key={idx} className="border-b">
+                            <td className="py-2">{annexure.title}</td>
+                            <td className="py-2">Uploaded</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
             })()}
           </>
         );

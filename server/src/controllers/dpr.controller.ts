@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Request, Response } from 'express';
 import { OpenAIService } from '../services/openai.service';
+import { DprBuilderAssistService } from '../services/dprBuilderAssist.service';
 import { DPRTemplate } from '../models/DPRTemplate.model';
 import { DPRSession } from '../models/DPRSession.model';
 import { Document } from '../models/Document.model';
@@ -8,6 +9,7 @@ import { DPRService } from '../services/dpr.service';
 import { QualityService } from '../services/quality.service';
 import { DPRVersion } from '../models/DPRVersion.model';
 import { AuthRequest } from '../types';
+import { AuditService } from '../services/audit.service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -563,6 +565,15 @@ export class DPRController {
 
       console.log(`✅ DPR generated and saved successfully: ${dpr.dprId}`);
 
+      await AuditService.log({
+        action: 'dpr_create',
+        userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: String(dpr.dprId),
+        req,
+      });
+
       res.status(200).json({
         success: true,
         message: 'DPR generated and saved successfully',
@@ -676,12 +687,24 @@ export class DPRController {
       }
 
       // Check if project belongs to the current user
-      if (project.userId?.toString() !== userId.toString()) {
+      const isOwner = project.userId?.toString() === userId.toString();
+      const isStaff = req.user?.role === 'admin' || req.user?.role === 'officer';
+      if (!isOwner && !isStaff) {
         res.status(403).json({
           success: false,
           message: 'Access denied: This DPR does not belong to you',
         });
         return;
+      }
+      if (!isOwner && isStaff) {
+        await AuditService.log({
+          action: 'admin_view',
+          userId,
+          role: req.user?.role,
+          targetType: 'dpr',
+          targetId: dprId,
+          req,
+        });
       }
 
       res.status(200).json({
@@ -757,6 +780,15 @@ export class DPRController {
       res.setHeader('Content-Length', pdfBuffer.length.toString());
       res.setHeader('Cache-Control', 'no-cache');
       
+      await AuditService.log({
+        action: 'dpr_download',
+        userId: req.user?.userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: dprId,
+        req,
+      });
+
       res.send(pdfBuffer);
       
       console.log(`✅ PDF sent successfully: ${pdfBuffer.length} bytes`);
@@ -780,7 +812,6 @@ export class DPRController {
       const { dprId } = req.params;
       const { language = 'english' } = req.query;
       const html = req.body?.html;
-      console.log('html', html);
 
       if (!html || typeof html !== 'string' || html.trim().length === 0) {
         res.status(400).json({
@@ -802,7 +833,13 @@ export class DPRController {
       console.log(`📥 Downloading EXACT PDF (from HTML) for DPR ${dprId} in ${language}...`);
       console.log(`   HTML length: ${html.length} chars`);
 
-      const pdfBuffer = await DPRService.generatePDFFromHTML(html);
+      let pdfBuffer: Buffer;
+      try {
+        pdfBuffer = await DPRService.generatePDFFromHTML(html);
+      } catch (htmlError: any) {
+        console.warn('⚠️ Exact HTML PDF failed, falling back to scheme/server PDF:', htmlError?.message);
+        pdfBuffer = await DPRService.generatePDF(dprId, language === 'telugu' ? 'telugu' : 'english');
+      }
 
       // Validate PDF header (PDF files start with %PDF)
       if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length < 4) {
@@ -825,6 +862,15 @@ export class DPRController {
       );
       res.setHeader('Content-Length', pdfBuffer.length.toString());
       res.setHeader('Cache-Control', 'no-cache');
+
+      await AuditService.log({
+        action: 'dpr_download',
+        userId: req.user?.userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: dprId,
+        req,
+      });
 
       res.send(pdfBuffer);
       console.log(`✅ EXACT PDF sent successfully: ${pdfBuffer.length} bytes`);
@@ -860,6 +906,14 @@ export class DPRController {
         'Content-Disposition',
         `attachment; filename="DPR_${dprId}.docx"`
       );
+      await AuditService.log({
+        action: 'dpr_download',
+        userId: req.user?.userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: dprId,
+        req,
+      });
       res.send(docxBuffer);
     } catch (error: any) {
       console.error('Error downloading DOCX:', error);
@@ -889,6 +943,14 @@ export class DPRController {
         'Content-Disposition',
         `attachment; filename="DPR_Session_${sessionId}.pdf"`
       );
+      await AuditService.log({
+        action: 'dpr_download',
+        userId: req.user?.userId,
+        role: req.user?.role,
+        targetType: 'session',
+        targetId: sessionId,
+        req,
+      });
       res.send(pdfBuffer);
     } catch (error: any) {
       console.error('Error downloading session PDF:', error);
@@ -1063,6 +1125,15 @@ export class DPRController {
 
       await dpr.save();
 
+      await AuditService.log({
+        action: 'dpr_change',
+        userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: dprId,
+        req,
+      });
+
       // Recalculate quality score
       QualityService.updateDPRQuality(dprId).catch(err => {
         console.error('Error recalculating quality score:', err);
@@ -1135,6 +1206,15 @@ export class DPRController {
       dpr.submittedAt = new Date();
       dpr.submittedTo = submittedTo || 'admin';
       await dpr.save();
+
+      await AuditService.log({
+        action: 'dpr_change',
+        userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: dprId,
+        req,
+      });
 
       res.status(200).json({
         success: true,
@@ -1288,6 +1368,53 @@ export class DPRController {
           message: 'Access denied: This DPR does not belong to you',
         });
         return;
+      }
+
+      await AuditService.log({
+        action: 'dpr_download',
+        userId,
+        role: req.user?.role,
+        targetType: 'dpr',
+        targetId: dprId,
+        req,
+      });
+
+      const { buildIndividualDocument, isIndividualDprRecord } = await import('../services/individualDprDocument');
+      if (isIndividualDprRecord(dpr, project)) {
+        const doc = buildIndividualDocument(dpr, project);
+        try {
+          const ExcelJS = require('exceljs');
+          const workbook = new ExcelJS.Workbook();
+          const cover = workbook.addWorksheet('Cover');
+          cover.addRow(['Detailed Project Report']);
+          cover.addRow([doc.actionLine, doc.unitName, doc.underLine]);
+          cover.addRow(['District', doc.district]);
+          cover.addRow(['Location', doc.location]);
+          if (doc.entrepreneurName) cover.addRow(['Entrepreneur name', doc.entrepreneurName]);
+          const qa = workbook.addWorksheet('Scheme Q&A');
+          qa.addRow(['Section #', 'Section', 'Question', 'Answer']);
+          doc.sections.forEach((s) => {
+            s.rows.forEach((r) => qa.addRow([s.n, s.title, r.label, r.value]));
+          });
+          const buffer = await workbook.xlsx.writeBuffer();
+          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          res.setHeader('Content-Disposition', `attachment; filename="DPR_${dprId}.xlsx"`);
+          res.send(buffer);
+          return;
+        } catch (excelError: any) {
+          let csv = `Detailed Project Report\n${doc.unitName}\n${doc.underLine}\n\n`;
+          doc.sections.forEach((s) => {
+            csv += `${s.n}. ${s.title}\n`;
+            s.rows.forEach((r) => {
+              csv += `"${String(r.label).replace(/"/g, '""')}","${String(r.value).replace(/"/g, '""')}"\n`;
+            });
+            csv += '\n';
+          });
+          res.setHeader('Content-Type', 'text/csv');
+          res.setHeader('Content-Disposition', `attachment; filename="DPR_${dprId}.csv"`);
+          res.send(csv);
+          return;
+        }
       }
 
       const contentLang = language === 'telugu' ? dpr.content.telugu : dpr.content.english;
@@ -1561,6 +1688,85 @@ export class DPRController {
       res.status(500).json({
         success: false,
         message: 'Failed to translate DPR to Telugu',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * One-shot grounded analysis for Create DPR (AIGuidedDPRBuilder) steps
+   */
+  static async analyzeBuilderStep(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { stepId, stepTitle, factSheet, customInstructions } = req.body || {};
+      if (!stepId) {
+        res.status(400).json({
+          success: false,
+          message: 'stepId is required',
+        });
+        return;
+      }
+
+      const data = await DprBuilderAssistService.analyzeStep({
+        stepId,
+        stepTitle: stepTitle || stepId,
+        factSheet: factSheet || {},
+        customInstructions,
+      });
+
+      res.status(200).json({
+        success: true,
+        data,
+      });
+    } catch (error: any) {
+      console.error('Error analyzing DPR builder step:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to analyze this step',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Step-scoped chat for Create DPR (AIGuidedDPRBuilder)
+   */
+  static async chatBuilderStep(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { stepId, stepTitle, factSheet, message, conversationHistory, customInstructions } = req.body || {};
+      if (!stepId) {
+        res.status(400).json({
+          success: false,
+          message: 'stepId is required',
+        });
+        return;
+      }
+      if (!message || !String(message).trim()) {
+        res.status(400).json({
+          success: false,
+          message: 'message is required',
+        });
+        return;
+      }
+
+      const data = await DprBuilderAssistService.chatStep({
+        stepId,
+        stepTitle: stepTitle || stepId,
+        factSheet: factSheet || {},
+        message: String(message).trim(),
+        conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
+        customInstructions,
+      });
+
+      res.status(200).json({
+        success: true,
+        data,
+      });
+    } catch (error: any) {
+      console.error('Error in DPR builder step chat:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get chat response',
         error: error.message,
       });
     }

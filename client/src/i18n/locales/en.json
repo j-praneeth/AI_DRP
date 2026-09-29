@@ -32,7 +32,9 @@
     "profile": "Profile",
     "appName": "MSME DPR Tool",
     "allDPRs": "All DPRs",
-    "documents": "Documents"
+    "documents": "Documents",
+    "privacy": "Privacy",
+    "notifications": "Notifications"
   },
   "auth": {
     "loginTitle": "Login to Your Account",
@@ -41,6 +43,8 @@
     "password": "Password",
     "name": "Full Name",
     "phoneNumber": "Phone Number",
+    "phoneRequired": "Enter your 10-digit phone number.",
+    "phoneInvalid": "Phone number must be exactly 10 digits.",
     "location": "Location",
     "udyamNumber": "Udyam Number (Optional)",
     "forgotPassword": "Forgot Password?",
@@ -61,7 +65,133 @@
     "bankReady": "Bank Ready",
     "professionalDPRs": "Professional DPRs for approval",
     "quickSetup": "Quick Setup",
-    "getStartedMinutes": "Get started in minutes"
+    "getStartedMinutes": "Get started in minutes",
+    "chooseRole": "Choose how you will use the platform",
+    "dateOfBirth": "Date of birth"
+  },
+  "privacy": {
+    "noticeLink": "privacy notice",
+    "accountConsent": "I have read the",
+    "accountConsentAfter": "and I agree to create an account and store my DPR data",
+    "accountRequired": "You must agree to the privacy notice to create or use an account.",
+    "mustRead": "Read the full privacy notice in the box. Scroll to the last line.",
+    "scrollToEnable": "Scroll to the bottom of the notice. Then you can tick the agreement box.",
+    "noticeRead": "You have reached the end. You may now tick the box.",
+    "aiConsent": "Allow AI help. We may send your form text (not Aadhaar, PAN, or bank files) to an AI model for suggestions and scoring.",
+    "aiOffWarning": "If you do not allow AI, Fill with AI, model-based quality scoring, chat help, and similar AI tools will not work. You can still type, save, and download the DPR.",
+    "analyticsConsent": "Allow basic usage analytics (optional).",
+    "noticeVersion": "Notice version {{version}}",
+    "guardianMessage": "This site makes bank and scheme DPRs. The person named as the entrepreneur must be 18 or older. Ask a parent or guardian to register and create the DPR in their name.",
+    "reconsentTitle": "Please review how we use your data",
+    "reconsentBody": "The privacy notice has changed, or you have not accepted it yet. You need to agree before using the dashboard.",
+    "continue": "Agree and continue",
+    "saved": "Your choices were saved.",
+    "saveFailed": "Could not save your choices. Try again.",
+    "loadFailed": "Could not load privacy settings.",
+    "settingsTitle": "Privacy and data",
+    "settingsSubtitle": "Download a copy, turn AI off, name a nominee, send a request, or delete your account.",
+    "openSettings": "Open privacy settings",
+    "downloadMyData": "Download my data",
+    "downloadMyDataHint": "JSON file with your profile, projects, and DPR answers. Password is never included.",
+    "exportReady": "Your data file is downloading.",
+    "exportFailed": "Could not export your data.",
+    "aiHeading": "AI help",
+    "nomineeHeading": "Nominee",
+    "nomineeHint": "Someone who may act on this account if you die or cannot act. Name plus phone or email.",
+    "nomineeName": "Nominee name",
+    "nomineePhone": "Nominee phone",
+    "nomineeEmail": "Nominee email",
+    "saveNominee": "Save nominee",
+    "nomineeSaved": "Nominee saved.",
+    "activityHeading": "Recent activity on my account",
+    "activityHint": "Your logins, downloads, and exports. Not other people’s data.",
+    "activityEmpty": "No activity recorded yet.",
+    "complaintHeading": "Privacy request",
+    "complaintHint": "Saved in this app and intended for {{email}}. A person must still reply. Expect about 90 days for a rights request.",
+    "complaintSubject": "Subject",
+    "complaintMessage": "Message",
+    "sendComplaint": "Send request",
+    "complaintSent": "Your request was saved.",
+    "notificationsHeading": "Notifications",
+    "notificationsHint": "We warn you 15 days before an unused DPR draft is deleted. The same text is logged as SMS (mocked until Twilio is connected) and shown here.",
+    "notificationsEmpty": "No notifications yet.",
+    "bellTitle": "Notifications",
+    "bellEmpty": "Nothing new.",
+    "markAllRead": "Mark all read",
+    "viewAllNotifications": "View all",
+    "phoneHint": "Idle-draft warnings go to this number. SMS is mocked in the server log until Twilio keys are set.",
+    "smsStatus": {
+      "mocked": "mocked (not sent)",
+      "sent": "sent",
+      "skipped": "skipped (no phone)",
+      "failed": "failed"
+    },
+    "deleteHeading": "Delete my account",
+    "deleteHint": "Removes your projects, DPRs, and uploaded files. Audit records stay.",
+    "deleteWarning": "This cannot be undone. Cloudinary and local files are deleted with the account.",
+    "deleteTypeDelete": "Type DELETE to confirm",
+    "deleteAccount": "Delete my account",
+    "accountDeleted": "Your account was deleted.",
+    "deleteFailed": "Could not delete the account.",
+    "actions": {
+      "login_success": "Signed in",
+      "login_failed": "Failed sign-in",
+      "logout": "Signed out",
+      "consent_given": "Consent given",
+      "consent_withdrawn": "AI consent turned off",
+      "notice_accepted": "Privacy notice accepted",
+      "dpr_create": "DPR created",
+      "dpr_change": "DPR changed",
+      "dpr_download": "DPR downloaded",
+      "dpr_delete": "Project deleted",
+      "kyc_upload": "File uploaded",
+      "kyc_delete": "File deleted",
+      "data_export": "Data exported",
+      "profile_change": "Profile changed",
+      "nominee_change": "Nominee updated",
+      "complaint_submitted": "Privacy request sent",
+      "retention_warning": "Draft expiry warning",
+      "retention_purge": "Idle draft deleted"
+    }
+  },
+  "rbac": {
+    "selectRole": "Select your role",
+    "accessControl": "Access Control",
+    "accessControlHint": "Preview of the three platform roles. Enforcement is UI-only for now.",
+    "permissions": "Permissions",
+    "roleCannotChange": "Your role is assigned by a Super Admin",
+    "updateRole": "Update role",
+    "roleUpdated": "Role updated in the UI",
+    "uiOnlyNote": "Role labels are shown in the UI. Full permission enforcement will come later.",
+    "roles": {
+      "super_admin": {
+        "label": "Super Admin",
+        "description": "Full platform control, users, policies, and analytics.",
+        "p1": "Manage users and assign roles",
+        "p2": "Access admin console and documents",
+        "p3": "Review and approve all DPRs",
+        "p4": "Create and edit policies",
+        "p5": "View platform-wide analytics"
+      },
+      "consultant": {
+        "label": "Consultant",
+        "description": "Create, edit, and generate DPRs for MSME clients.",
+        "p1": "Create and edit DPRs",
+        "p2": "Save drafts and generate documents",
+        "p3": "Use AI-guided builder and chat",
+        "p4": "Match government schemes",
+        "p5": "View own projects and scores"
+      },
+      "govt_official": {
+        "label": "Govt Official",
+        "description": "Review submitted DPRs and scheme alignment.",
+        "p1": "Review submitted DPRs",
+        "p2": "View completeness and quality scores",
+        "p3": "Access scheme and policy information",
+        "p4": "Cannot create or edit DPRs",
+        "p5": "Cannot manage users or admin settings"
+      }
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -98,7 +228,6 @@
     "createFirstDPR": "Create your first Detailed Project Report to get started with AI-powered business planning",
     "createYourFirstDPR": "Create Your First DPR",
     "view": "View",
-    "quickActions": "Quick Actions",
     "accessFrequentlyUsed": "Access frequently used features",
     "aiGuidedBuilder": "AI-Guided Builder",
     "getInstantHelp": "Get instant help",
@@ -108,7 +237,9 @@
     "untitledProject": "Untitled Project",
     "unknown": "Unknown",
     "unknownSector": "Unknown Sector",
-    "version": "Version"
+    "version": "Version",
+    "ventureMatch": "Scheme Finder",
+    "ventureMatchHint": "Find schemes you can apply for"
   },
   "projects": {
     "title": "My Projects",
@@ -118,7 +249,7 @@
     "individual": "Individual",
     "cluster": "Cluster",
     "industrySector": "Industry Sector",
-    "totalCost": "Total Project Cost",
+    "totalCost": "Total Cost",
     "ownContribution": "Own Contribution",
     "loanAmount": "Loan Amount Required",
     "location": "Location",
@@ -140,7 +271,6 @@
     "tryAdjusting": "Try adjusting your search terms",
     "createFirstProject": "Create your first project to get started with DPR generation",
     "createYourFirstProject": "Create Your First Project",
-    "totalCost": "Total Cost",
     "created": "Created",
     "editProject": "Edit Project",
     "updateProjectDetails": "Update your project details",
@@ -169,37 +299,6 @@
     "bilingual": "Bilingual (English + Telugu)",
     "downloadPDF": "Download PDF",
     "downloadDOCX": "Download DOCX",
-    "preview": "Preview DPR",
-    "notAvailable": "Not Available",
-    "translating": "Translating...",
-    "translateToTelugu": "Translate to Telugu",
-    "failedToLoad": "Failed to load project",
-    "sections": {
-      "executiveSummary": "Executive Summary",
-      "businessProfile": "Business Profile",
-      "applicantInfo": "Applicant Information",
-      "projectAtGlance": "Project at a Glance",
-      "buildingDetails": "Building Details",
-      "machineryDetails": "Machinery Details",
-      "otherCapitalCosts": "Other Capital Costs",
-      "rawMaterials": "Raw Materials",
-      "wages": "Wages",
-      "salaryDetails": "Salary Details",
-      "workingCapitalEstimate": "Working Capital Estimate",
-      "powerEstimate": "Power Estimate",
-      "energyEfficiency": "Energy Efficiency",
-      "waterEfficiency": "Water Efficiency",
-      "overheadExpenses": "Overhead Expenses",
-      "financing": "Financing",
-      "salesDetails": "Sales Details",
-      "marketAnalysis": "Market Analysis",
-      "technicalFeasibility": "Technical Feasibility",
-      "financialProjections": "Financial Projections",
-      "financialParameters": "Financial Parameters",
-      "beneficiaryInfo": "Beneficiary Information",
-      "eligibleSchemes": "Eligible Government Schemes",
-      "conclusion": "Conclusion"
-    },
     "preview": {
       "backToDashboard": "Back to Dashboard",
       "loadingDPR": "Loading DPR...",
@@ -232,6 +331,36 @@
       "submitted": "Submitted",
       "approved": "Approved",
       "rejected": "Rejected"
+    },
+    "notAvailable": "Not Available",
+    "translating": "Translating...",
+    "translateToTelugu": "Translate to Telugu",
+    "failedToLoad": "Failed to load project",
+    "sections": {
+      "executiveSummary": "Executive Summary",
+      "businessProfile": "Business Profile",
+      "applicantInfo": "Applicant Information",
+      "projectAtGlance": "Project at a Glance",
+      "buildingDetails": "Building Details",
+      "machineryDetails": "Machinery Details",
+      "otherCapitalCosts": "Other Capital Costs",
+      "rawMaterials": "Raw Materials",
+      "wages": "Wages",
+      "salaryDetails": "Salary Details",
+      "workingCapitalEstimate": "Working Capital Estimate",
+      "powerEstimate": "Power Estimate",
+      "energyEfficiency": "Energy Efficiency",
+      "waterEfficiency": "Water Efficiency",
+      "overheadExpenses": "Overhead Expenses",
+      "financing": "Financing",
+      "salesDetails": "Sales Details",
+      "marketAnalysis": "Market Analysis",
+      "technicalFeasibility": "Technical Feasibility",
+      "financialProjections": "Financial Projections",
+      "financialParameters": "Financial Parameters",
+      "beneficiaryInfo": "Beneficiary Information",
+      "eligibleSchemes": "Eligible Government Schemes",
+      "conclusion": "Conclusion"
     }
   },
   "schemes": {
@@ -346,6 +475,29 @@
       "businessDescriptionItems": "Products or services you will produce/offer, Business model and how you will operate, Unique value proposition and competitive advantages, Production capacity or service volume, Business objectives and goals, Target customers and market approach"
     },
     "generateSampleContent": "Generate Sample Content",
+    "assist": {
+      "analyzeButton": "Analyze & Suggestions",
+      "analyzing": "Analyzing...",
+      "helperText": "After filling this step, run a review of these fields only. Chat appears after analysis.",
+      "customInstructions": "Custom instructions",
+      "customInstructionsHint": "This prompt controls how Analyze and step chat think. Edit it, then run Analyze. Reset restores the default mentor prompt.",
+      "resetPrompt": "Reset to default",
+      "offloadingLabel": "Offloading idea",
+      "suggestionsHeading": "How these figures look",
+      "suggestionsHint": "Figures that look fine are left as they are. We only flag amounts that may be high or low, plus optional ways to keep the starting budget down.",
+      "chatTitle": "Step assistant",
+      "openChat": "Open step chat",
+      "closeChat": "Close chat",
+      "chatPlaceholder": "Ask about improving this step…",
+      "thinking": "Thinking…",
+      "chatOpenerLead": "I see you've filled {{step}} — {{details}}.",
+      "chatOpenerLeadSparse": "I see you've started {{step}}.",
+      "chatOpenerImprovements": "Here's how these figures look to me:",
+      "chatOpenerAsk": "Want to talk through any of these?",
+      "chatOpenerUntitled": "Suggestion",
+      "analyzeFailed": "Could not analyze this step. Please try again.",
+      "chatFailed": "Could not send your message. Please try again."
+    },
     "aiGeneratedSample": "AI-Generated Sample Content",
     "clickApplyToUse": "Click \"Apply All\" to use the AI-generated suggestions. You can edit them after applying.",
     "applyAll": "Apply All",
@@ -573,6 +725,7 @@
       "products": "Product and By Product"
     },
     "errors": {
+      "completeStepForAnalyze": "Fill the required fields on this step before running Analyze & Suggestions.",
       "completeBusinessOverview": "Please complete Business Overview section (Project Name and Industry Sector are required)",
       "failedToLoadProject": "Failed to load project",
       "failedToCreateProject": "Failed to create project. Please try again.",
@@ -583,6 +736,736 @@
       "appliedCapexSuggestion": "Applied AI suggestion to CAPEX - {{field}}",
       "appliedOpexSuggestion": "Applied AI suggestion to OPEX - {{field}}"
     }
+  },
+  "ventureMatch": {
+    "title": "Scheme Finder",
+    "progress": "Question {{current}} of {{total}}",
+    "remaining": "{{count}} schemes still possible",
+    "selectAll": "Select all that apply, then tap Next.",
+    "resultsTitle": "Schemes that fit your answers",
+    "resultsSubtitle": "{{count}} schemes match what you told us.",
+    "noMatches": "No schemes match these answers.",
+    "notEligible": "{{count}} schemes do not match",
+    "createDpr": "Create DPR",
+    "generateDprForMatch": "Generate DPR for this Match",
+    "startOver": "Start again",
+    "notAnswered": "Not answered",
+    "stepExclusionsTitle": "Why some schemes dropped out",
+    "stepExclusionBecause": "{{name}} is not matching because {{reason}}.",
+    "stepExclusionBecauseMany": "{{name}} is not matching because: {{reason}}.",
+    "cmepBoosterTitle": "CMEP Special Booster Match",
+    "cmepBoosterBody": "As a Woman / Transgender / Ex-Serviceman / Specially-Abled promoter, you qualify for enhanced back-ended subsidy support under AP CMEP.",
+    "help": {
+      "open": "Need help choosing?",
+      "close": "Close help",
+      "title": "Help me choose",
+      "subtitle": "Answer a few Andhra Pradesh–specific questions. I will suggest the matching option.",
+      "placeholder": "Or type your situation…",
+      "send": "Send",
+      "useAnswer": "Use this answer",
+      "thinking": "Thinking…",
+      "error": "Could not get help. Try again.",
+      "lowConfidence": "This is a best guess — you can still pick another option on the card.",
+      "kickoff": "I will ask short questions based on Andhra Pradesh scheme rules, then match you to an option.",
+      "languageToggle": "Chat language",
+      "starters": {
+        "activity": [
+          "Making / processing",
+          "Buying and selling",
+          "Giving a service",
+          "Only farming crops"
+        ],
+        "stage": [
+          "Yes, already running",
+          "Not started yet",
+          "Not sure"
+        ],
+        "budget": [
+          "Yes, I have a rough cost",
+          "No money needed",
+          "Not calculated yet"
+        ],
+        "legal": [
+          "Yes, registered",
+          "No firm yet",
+          "SHG / coop / trust / FPO",
+          "Not decided yet"
+        ],
+        "owner": [
+          "Someone holds 51%+",
+          "Equal split (no 51%)",
+          "Ownership not decided",
+          "Not sure"
+        ],
+        "domicile": [
+          "Yes, I live in AP",
+          "No, another state",
+          "Not sure"
+        ],
+        "location": [
+          "Yes, in Andhra Pradesh",
+          "Outside Andhra Pradesh",
+          "Location not decided"
+        ],
+        "riceCard": [
+          "Yes, White Rice Card",
+          "No White Rice Card",
+          "Not sure"
+        ],
+        "age": [
+          "Below 18",
+          "18 to 20",
+          "21 to 50",
+          "51 to 60"
+        ],
+        "education": [
+          "Yes, 8th or higher",
+          "Below 8th class",
+          "Not sure"
+        ],
+        "udyam": [
+          "Yes, I have Udyam",
+          "No, not yet",
+          "Not sure what Udyam is"
+        ],
+        "priorSubsidy": [
+          "Yes",
+          "No",
+          "Not sure"
+        ],
+        "govtFamily": [
+          "Yes",
+          "No",
+          "Not sure"
+        ],
+        "market": [
+          "Already selling",
+          "Not selling yet",
+          "Not sure"
+        ],
+        "supportType": [
+          "Loan or subsidy",
+          "Training",
+          "Certification",
+          "Not sure"
+        ],
+        "upgradeIntent": [
+          "Upgrade machines",
+          "2nd PMEGP",
+          "Working capital",
+          "Expand same line"
+        ],
+        "qualityGoal": [
+          "ZED",
+          "LEAN",
+          "IPR",
+          "Not sure"
+        ],
+        "sectorFlag": [
+          "Pharma",
+          "Coir",
+          "Handloom",
+          "None"
+        ],
+        "procurementInterest": [
+          "Yes",
+          "No",
+          "Not sure"
+        ]
+      }
+    },
+    "criteria": {
+      "streetVending": "Must be a street vendor",
+      "urban": "Must be in a city or town",
+      "age18": "You must be 18 years or older",
+      "craft": "Must be a traditional craft or trade",
+      "noOutstandingSubsidy": "Must not have an unpaid government subsidy loan from the last 5 years",
+      "noGovtFamily": "No close family member should have a government job",
+      "foodProcessing": "Must be a food processing business",
+      "budgetPmFme": "Project cost must be up to about ₹50 lakh",
+      "legalSoleOrPartnership": "Must be a sole owner, partnership, or SHG / FPO / cooperative",
+      "legalPmfme": "Must be a sole owner, partnership, or SHG / FPO / cooperative",
+      "legalPmegp": "Must be a registered sole owner, partnership, or company",
+      "legalRegistered": "Must have a registered firm (not “no firm yet”)",
+      "legalObmms": "Apply as an individual (no registered company needed)",
+      "legalApEdp": "Must be a registered sole owner, partnership, or company",
+      "education8th": "Must have passed 8th class or higher",
+      "greenfield": "Must be a new business",
+      "brownfield": "Must be an existing unit, or a closed unit being restarted",
+      "notCrop": "Must be a non-farm enterprise (making, services, trade, or mixed)",
+      "enterpriseActivity": "Must be a non-farm enterprise (making, services, trade, or mixed)",
+      "mustBeEnterprise": "Must be starting or running a business unit, not a job search",
+      "budgetRequired": "Must have a project cost (not zero and not unknown)",
+      "apLocation": "The unit must be in Andhra Pradesh",
+      "apUnitLocation": "The unit must be in a city, village, or APIIC park in Andhra Pradesh (not from home)",
+      "obmmsStage": "Must be a planned or running unit, not only an idea",
+      "pmegpEducation": "If the project is large, you must have passed 8th class (₹10 lakh for making goods, ₹5 lakh for services)",
+      "womanScSt": "Main owner must be a woman, SC, or ST holding 51% or more",
+      "standupMin": "Loan amount starts from ₹10 lakh",
+      "standupMax": "Loan amount can be up to ₹1 crore",
+      "udyam": "Must have Udyam registration, or be ready to get it",
+      "mudraCap": "MUDRA loan is up to ₹20 lakh",
+      "budgetUnder10Cr": "Money needed must be less than ₹10 crore",
+      "manufacturing": "Must make or produce goods",
+      "apDomicile": "You must live in Andhra Pradesh",
+      "socialCategory": "Must belong to SC, ST, BC, or be a person with disability",
+      "riceCard": "Must have a White Rice Card",
+      "age21to60": "Age must be 21 to 60 years",
+      "apiic": "Unit must be inside an APIIC industrial park",
+      "ecommerce": "For selling online (like ONDC)",
+      "export": "For selling goods to other countries",
+      "cmepActivity": "AP CMEP is strictly for Manufacturing or Knowledge Economy ventures.",
+      "cmepDomicile": "AP CMEP requires Andhra Pradesh local domicile.",
+      "cmepCredit": "AP CMEP requires a bank-linked credit loan.",
+      "secondPmegpLoan": "Must be applying for a 2nd PMEGP upgrade loan (existing assisted unit)",
+      "workingCapitalOnly": "Must need working capital / guarantee top-up, not a new plant",
+      "techUpgrade": "Must be upgrading technology or expanding the same line",
+      "scStOwner": "Main owner must be SC or ST (51%+)",
+      "mfgFoodCraft": "Must be manufacturing, food processing, or craft",
+      "budgetAbove2L": "Project cost should be above about ₹2 lakh",
+      "certificationSupport": "Looking for quality / certification support",
+      "zedGoal": "Must target ZED certification",
+      "leanGoal": "Must target LEAN consulting",
+      "iprGoal": "Must target IPR / design / incubation support",
+      "mfgOrFood": "Must be manufacturing or food processing",
+      "knowledgeMfgFood": "Must be knowledge, manufacturing, or food",
+      "notBankLoan": "Not primarily a bank term-loan application",
+      "trainingSupport": "Looking for training / skill development",
+      "procurementInterest": "Interested in government procurement / GeM",
+      "trainingOrTech": "Looking for training or technology centre support",
+      "ruralPreferred": "Rural / home-based location preferred",
+      "ideaOrGreenfield": "Must be an idea or new unit",
+      "notAbove10Cr": "Project must not be above ₹10 crore factory scale",
+      "marketingFair": "Looking for trade fair / marketing support",
+      "existingPreferred": "Existing unit preferred (not only an idea)",
+      "coirSector": "Must be a coir product line",
+      "handloomSector": "Must be handloom / weaving",
+      "pharmaSector": "Must be pharma / medical devices",
+      "craftOrMfg": "Must be craft or manufacturing",
+      "clusterCfc": "Looking for multi-unit / CFC cluster support",
+      "priorSubsidyRepaid": "Prior subsidy loan should be fully repaid"
+    },
+    "ownershipHint": {
+      "title": "Think about putting the business in your wife’s or mother’s name",
+      "body": "You said the main owner is a general category man. If your wife or mother owns 51% or more, you may get extra help:",
+      "subsidy": "Subsidy: AP EDP 4.0 / CMEP support can rise for women and special-category local entrepreneurs (building and machine cost).",
+      "debt": "Loan: You may become eligible for Stand-Up India, up to ₹1 crore.",
+      "guarantee": "Guarantee: Bank guarantee cover can go up to 90%, with a lower yearly fee.",
+      "ecosystem": "Extra support: Free quality certificate (ZED) and a women’s quota in the RAMP TEAM online selling programme."
+    },
+    "schemes": {
+      "SVANIDHI": {
+        "name": "PM SVANidhi"
+      },
+      "VISHWAKARMA": {
+        "name": "PM Vishwakarma"
+      },
+      "PMFME": {
+        "name": "PMFME (food processing scheme)"
+      },
+      "PMEGP": {
+        "name": "PMEGP (new small business scheme)"
+      },
+      "STANDUP": {
+        "name": "Stand-Up India"
+      },
+      "MUDRA": {
+        "name": "PM MUDRA Yojana"
+      },
+      "CGTMSE": {
+        "name": "CGTMSE (loan guarantee)"
+      },
+      "AP_CMEP": {
+        "name": "AP Chief Minister's Entrepreneur Programme (AP CMEP)"
+      },
+      "AP_EDP": {
+        "name": "AP MSME-EDP 4.0"
+      },
+      "AP_FPP": {
+        "name": "AP Food Processing Policy 4.0"
+      },
+      "AP_TECH_UPGRADE": {
+        "name": "AP Technology Upgrade Subsidy"
+      },
+      "MSE_SPICE": {
+        "name": "RAMP MSE-SPICE"
+      },
+      "OBMMS": {
+        "name": "AP Welfare Corporation self-employment loan (OBMMS)"
+      },
+      "AP_PARKS": {
+        "name": "AP MSME Parks land cost rebate"
+      },
+      "RAMP_TEAM": {
+        "name": "RAMP TEAM (sell online on ONDC)"
+      },
+      "EPM_NIRYAT": {
+        "name": "EPM Niryat Protsahan (export support)"
+      },
+      "PMEGP_2ND": {
+        "name": "2nd PMEGP / REGP / MUDRA upgrade loan"
+      },
+      "ECLGS": {
+        "name": "ECLGS (emergency credit line guarantee)"
+      },
+      "SCLCSS": {
+        "name": "SCLCSS (SC/ST technology capital subsidy)"
+      },
+      "ZED": {
+        "name": "ZED Certification"
+      },
+      "LEAN": {
+        "name": "Competitive LEAN"
+      },
+      "MSME_IPR": {
+        "name": "MSME Innovative (IPR / design)"
+      },
+      "CHAMPIONS": {
+        "name": "MSME Champions"
+      },
+      "ESDP": {
+        "name": "ESDP (skill / entrepreneurship training)"
+      },
+      "SCST_HUB": {
+        "name": "National SC/ST Hub"
+      },
+      "NTCEC": {
+        "name": "MSME Technology Centres / Extension Centres"
+      },
+      "ASPIRE": {
+        "name": "ASPIRE (rural innovation / livelihood)"
+      },
+      "MSE_GIFT": {
+        "name": "MSE-GIFT (green investment)"
+      },
+      "PMS": {
+        "name": "Procurement & Marketing Scheme (PMS)"
+      },
+      "CVY": {
+        "name": "Coir Vikas Yojana"
+      },
+      "NHDP": {
+        "name": "National Handloom Development Programme"
+      },
+      "PTUAS": {
+        "name": "PTUAS (pharma technology upgrade)"
+      },
+      "PMPDS": {
+        "name": "PMPDS (pharma & medical devices)"
+      },
+      "MSE_CDP": {
+        "name": "MSE-CDP (cluster / CFC)"
+      },
+      "SFURTI": {
+        "name": "SFURTI (traditional industry clusters)"
+      },
+      "AP_CDP": {
+        "name": "AP Cluster Development Programme"
+      },
+      "APICF": {
+        "name": "APICF (pharma common facilities)"
+      }
+    },
+    "benefits": {
+      "svanidhi": "Small working-capital loan for street vendors",
+      "vishwakarma": "Toolkit, training, and loan support for traditional trades",
+      "pmfme": "Subsidy for small food processing units",
+      "pmegpRuralSpecial": "35% subsidy (village area, special category)",
+      "pmegpUrbanSpecial": "25% subsidy (city area, special category)",
+      "pmegpRural": "25% subsidy (village area)",
+      "pmegpUrban": "15% subsidy (city area)",
+      "standup": "Bank loan from ₹10 lakh to ₹1 crore for SC, ST, or women-owned new units (confirm live DFS / bank guidelines — original Stand-Up India window ended Mar 2025)",
+      "mudra": "Loan without extra property as security, up to ₹20 lakh",
+      "cgtmseWomen": "Up to 90% loan guarantee for women-owned units",
+      "cgtmse": "Loan guarantee without extra property as security",
+      "apCmep": "Credit-linked back-ended subsidy for a new manufacturing or knowledge-economy unit under AP CMEP",
+      "apCmepBoost": "Enhanced credit-linked back-ended subsidy under AP CMEP for women, transgender, ex-servicemen, or specially-abled promoters",
+      "apEdp": "Andhra Pradesh subsidy for new manufacturing units",
+      "apEdpBoost": "Andhra Pradesh subsidy for new manufacturing units, plus extra 10% for special category",
+      "apFpp": "Andhra Pradesh subsidy for food processing units",
+      "apFppBoost": "Andhra Pradesh subsidy for food processing units, plus extra 10% for special category",
+      "apTech": "20% subsidy to upgrade machines in an existing unit",
+      "mseSpice": "Support to expand or upgrade an existing unit",
+      "obmms": "Subsidy on a self-employment loan from the AP welfare corporation",
+      "apParks": "75% rebate on land cost in APIIC industrial parks",
+      "rampTeam": "Free help to start selling on ONDC",
+      "epmNiryat": "2.75% interest support on export loans",
+      "pmegp2nd": "Upgrade loan / subsidy for existing PMEGP, REGP, or MUDRA units",
+      "eclgs": "Additional working-capital guarantee for existing MSMEs",
+      "sclcss": "25% capital subsidy (up to ₹25 lakh) for SC/ST-owned MSE technology upgrade",
+      "zed": "Support to assess and certify under ZED (Bronze / Silver / Gold)",
+      "lean": "LEAN consulting support for existing manufacturing / food units",
+      "msmeIpr": "Support for patents, designs, trademarks, and incubation",
+      "champions": "Helpdesk for delayed payments, public procurement, and MSME issues",
+      "esdp": "Entrepreneurship and skill development training batches",
+      "scstHub": "Procurement readiness and market access for SC/ST MSEs",
+      "ntcec": "Tooling, training, and job-work at MSME Technology Centres",
+      "aspire": "Rural innovation / livelihood and incubator-linked support",
+      "mseGift": "Green / energy-efficient machinery financing support",
+      "pms": "Trade fair stall and marketing reimbursement support",
+      "cvy": "Coir Board linked subsidy / credit support",
+      "nhdp": "Handloom weaver development support",
+      "ptuas": "Pharma technology upgradation assistance (unit-level)",
+      "pmpds": "Pharma and medical devices promotion / development support",
+      "mseCdp": "Multi-unit CFC / cluster infrastructure — use Cluster DPR",
+      "sfurti": "Traditional industry cluster regeneration — use Cluster DPR",
+      "apCdp": "State cluster development — use Cluster DPR",
+      "apicf": "Pharma common facilities cluster — use Cluster DPR"
+    },
+    "questions": {
+      "activity": {
+        "label": "What is your hustle?",
+        "title": "What kind of work do you want to do?",
+        "options": {
+          "mfg": "Making goods (for example: machines, plastic items, metal work)",
+          "knowledge": "Knowledge economy & tech services (IT/ITeS, software, biotech, R&D)",
+          "food": "Food processing (for example: bakery, pickle unit, spice grinding)",
+          "craft": "Traditional craft (for example: carpentry, pottery, tailoring, goldsmith)",
+          "service": "Services (for example: salon, clinic, repair shop)",
+          "trade": "Buying and selling (for example: kirana shop, cloth shop)",
+          "vending": "Street vending (for example: food cart or market stall)",
+          "crop": "Growing crops on a farm",
+          "mixed": "More than one type (for example: bakery plus a shop)",
+          "notSure": "Still deciding",
+          "notBusiness": "I am not starting a business unit"
+        }
+      },
+      "stage": {
+        "label": "Starting fresh or scaling up?",
+        "title": "Is this a new business, an existing one, or only an idea?",
+        "options": {
+          "greenfield": "New business",
+          "brownfield": "Existing business (I want to expand or upgrade)",
+          "idea": "Only an idea so far — no land, machines, or operations yet",
+          "restart": "Reopening a closed or sick unit",
+          "notSure": "Not sure yet"
+        }
+      },
+      "budget": {
+        "label": "Project cost",
+        "title": "How much money do you need to set this up?",
+        "options": {
+          "under2L": "Less than ₹2 lakh",
+          "2to5L": "₹2 lakh to ₹5 lakh",
+          "5to10L": "₹5 lakh to ₹10 lakh",
+          "10to20L": "₹10 lakh to ₹20 lakh",
+          "20to50L": "₹20 lakh to ₹50 lakh",
+          "50Lto1Cr": "₹50 lakh to ₹1 crore",
+          "1to10Cr": "₹1 crore to ₹10 crore",
+          "above10Cr": "More than ₹10 crore",
+          "none": "No money needed",
+          "notSure": "Budget not calculated yet"
+        }
+      },
+      "legal": {
+        "label": "How is it registered?",
+        "title": "How is your business registered?",
+        "options": {
+          "sole": "Sole owner (only me)",
+          "partnership": "Partnership or LLP",
+          "company": "Private or public limited company",
+          "unregistered": "No firm yet — not registered",
+          "otherEntity": "SHG, cooperative, trust, society, or FPO",
+          "notSure": "Not decided yet"
+        }
+      },
+      "owner": {
+        "label": "Majority owner (51% or more)",
+        "title": "Who owns more than half of the business (51% or more)?",
+        "options": {
+          "female": "Woman",
+          "sc": "Scheduled Caste (SC)",
+          "st": "Scheduled Tribe (ST)",
+          "bc": "Backward Class (BC) or Minority",
+          "pwd": "Person with disability",
+          "transgender": "Transgender person",
+          "exServiceman": "Ex-serviceman",
+          "generalMale": "General category man",
+          "notDecided": "Ownership not decided yet",
+          "noMajority": "No one holds 51% (equal split)",
+          "notSure": "Not sure about the category"
+        }
+      },
+      "domicile": {
+        "label": "Andhra Pradesh resident?",
+        "title": "Do you live in Andhra Pradesh?",
+        "options": {
+          "ap": "Yes, I live in Andhra Pradesh",
+          "other": "No, I live in another state",
+          "planningAp": "I live elsewhere but plan to set up in Andhra Pradesh",
+          "notSure": "Not sure"
+        }
+      },
+      "location": {
+        "label": "Where is the unit?",
+        "title": "Where is your business physically located?",
+        "options": {
+          "urban": "City or town (municipality)",
+          "rural": "Village (gram panchayat)",
+          "apiic": "Inside an APIIC industrial park",
+          "home": "From home (no shop or plot)",
+          "outsideAp": "Outside Andhra Pradesh",
+          "notDecided": "Location not decided yet"
+        }
+      },
+      "riceCard": {
+        "label": "White Rice Card",
+        "title": "Does your family have a White Rice Card?",
+        "options": {
+          "yes": "Yes",
+          "no": "No",
+          "otherCard": "We have another ration card (not White Rice Card)",
+          "notSure": "Not sure"
+        }
+      },
+      "age": {
+        "label": "Age",
+        "title": "How old are you?",
+        "options": {
+          "under18": "Below 18 years",
+          "18to20": "18 to 20 years",
+          "21to50": "21 to 50 years",
+          "51to60": "51 to 60 years",
+          "above60": "Above 60 years",
+          "notSure": "Not sure"
+        }
+      },
+      "education": {
+        "label": "Education",
+        "title": "What is the highest class you have passed?",
+        "options": {
+          "below8th": "Below 8th class",
+          "8thPlus": "8th class or higher",
+          "notSure": "Not sure / no certificates"
+        }
+      },
+      "udyam": {
+        "label": "Udyam",
+        "title": "Do you have Udyam registration?",
+        "options": {
+          "yes": "Yes",
+          "willing": "No, but I am ready to register (it is free)",
+          "applied": "I have applied, but do not have the certificate yet",
+          "refuse": "No, and I do not want to register",
+          "notSure": "Not sure what Udyam is"
+        }
+      },
+      "priorSubsidy": {
+        "label": "Old loans",
+        "title": "In the last 5 years, did you take a government subsidy loan?",
+        "options": {
+          "none": "No",
+          "repaid": "Yes, but I have fully repaid it",
+          "outstanding": "Yes, I still have an unpaid subsidy loan",
+          "notSure": "Not sure"
+        }
+      },
+      "govtFamily": {
+        "label": "Family job",
+        "title": "Does anyone in your close family have a government job?",
+        "options": {
+          "yes": "Yes",
+          "no": "No",
+          "notSure": "Not sure"
+        }
+      },
+      "market": {
+        "label": "Where will you sell?",
+        "title": "How do you mainly sell your products?",
+        "options": {
+          "offline": "In a shop or local market",
+          "ecommerce": "Online (ONDC or other websites)",
+          "export": "To other countries",
+          "both": "Both shop/market and online",
+          "notSellingYet": "Not selling yet",
+          "notSure": "Not sure"
+        }
+      },
+      "supportType": {
+        "label": "What kind of help do you need?",
+        "title": "What support are you looking for first?",
+        "options": {
+          "loanOrSubsidy": "Bank loan or capital subsidy",
+          "guarantee": "Loan guarantee / extra working capital cover",
+          "certification": "Quality certification or consulting (ZED / LEAN / IPR)",
+          "training": "Training or skill programme",
+          "marketingFair": "Trade fair / marketing support",
+          "clusterCfc": "Common facility / multi-unit cluster project",
+          "notSure": "Not sure yet"
+        }
+      },
+      "upgradeIntent": {
+        "label": "What is the upgrade for?",
+        "title": "For your existing unit, what do you want to do?",
+        "options": {
+          "expandSameLine": "Expand capacity in the same line",
+          "techUpgrade": "Upgrade machines / technology",
+          "secondPmegpLoan": "2nd PMEGP loan on an existing assisted unit",
+          "workingCapitalOnly": "Only working capital / liquidity",
+          "notSure": "Not sure"
+        }
+      },
+      "qualityGoal": {
+        "label": "Which quality track?",
+        "title": "Which certification or consulting track fits?",
+        "options": {
+          "zed": "ZED certification",
+          "lean": "LEAN consulting",
+          "ipr": "IPR / design / incubation",
+          "none": "None of these",
+          "notSure": "Not sure"
+        }
+      },
+      "sectorFlag": {
+        "label": "Special sector?",
+        "title": "Is your unit in one of these special sectors?",
+        "options": {
+          "none": "No special sector",
+          "pharma": "Pharma / medical devices",
+          "coir": "Coir",
+          "handloom": "Handloom / weaving",
+          "notSure": "Not sure"
+        }
+      },
+      "procurementInterest": {
+        "label": "Government procurement?",
+        "title": "Are you interested in selling to government / GeM?",
+        "options": {
+          "yes": "Yes",
+          "no": "No",
+          "notSure": "Not sure"
+        }
+      }
+    },
+    "openClusterDpr": "Open Cluster DPR",
+    "generateShortPack": "Prepare short pack for this match",
+    "ctaOnlyHint": "This is a service / helpdesk programme — not a bank DPR. Contact DIC / Champions portal / ESDP batch as applicable.",
+    "clusterRedirectHint": "This is a multi-unit / CFC cluster scheme. Use Cluster DPR, not the individual 18-step form."
+  },
+  "clusterDpr": {
+    "title": "Cluster DPR Creation",
+    "stepOf": "Step {{current}} of {{total}}",
+    "stepShort": "Step {{n}}",
+    "saveDraft": "Save Draft",
+    "form": "Form",
+    "split": "Split",
+    "preview": "Preview",
+    "generateDpr": "Generate DPR",
+    "livePreview": "Live DPR Preview",
+    "loadingDraft": "Loading draft data from database...",
+    "zoomOut": "Zoom Out",
+    "zoomIn": "Zoom In",
+    "resetZoom": "Reset Zoom",
+    "lakhs": "Lakhs",
+    "toasts": {
+      "saveFailedDb": "Failed to save draft to database",
+      "saveSuccess": "Draft saved to database successfully!",
+      "needClusterName": "Please complete Step 1 (Cluster Name) before saving",
+      "saveFailed": "Failed to save draft",
+      "needStep1": "Please fill in at least Step 1 (Basic Cluster Details) before generating DPR.",
+      "saveBeforeGenerateFailed": "Failed to save data before generating DPR",
+      "generating": "Generating DPR with AI enhancement...",
+      "generateSuccess": "DPR generated successfully!",
+      "generateFailed": "Failed to generate DPR. Please try again."
+    },
+    "steps": {
+      "1": "Step 1: Executive Summary – Basic Cluster Details",
+      "2": "Step 2: Introduction & Sector Overview",
+      "3": "Step 3: District & Regional Profile",
+      "4": "Step 4: Cluster Profile",
+      "5": "Step 5: Value Chain Details",
+      "6": "Step 6: Market Assessment",
+      "7": "Step 7: Gap Analysis",
+      "8": "Step 8: SWOT Analysis",
+      "9": "Step 9: Proposed Interventions",
+      "10": "Step 10: Common Facility Centre (CFC) Details",
+      "11": "Step 11: SPV Details",
+      "12": "Step 12: Project Cost Details",
+      "13": "Step 13: Means of Finance",
+      "14": "Step 14: Operating Cost & Revenue",
+      "15": "Step 15: Financial Viability",
+      "16": "Step 16: Project Implementation Schedule",
+      "17": "Step 17: Expected Impact",
+      "18": "Step 18: Annexures & Document Uploads"
+    }
+  },
+  "individualDpr": {
+    "title": "Create New Latest DPR",
+    "stepOf": "Step {{current}} of {{total}}",
+    "stepShort": "Step {{n}}",
+    "hiddenForScheme": "({{count}} hidden for this scheme)",
+    "scheme": "Scheme: {{title}}",
+    "schemeSelected": "Scheme: {{name}}",
+    "schemeLabel": "Scheme",
+    "vanillaOption": "Know which scheme you want? Vanilla bank term loan",
+    "loading": "Loading...",
+    "fullscreen": "Fullscreen",
+    "saveDraft": "Save Draft",
+    "form": "Form",
+    "split": "Split",
+    "preview": "Preview",
+    "generateDpr": "Generate DPR",
+    "livePreview": "Live DPR Preview",
+    "picker": {
+      "title": "Choose how to draft this DPR",
+      "subtitle": "Pick a scheme to overlay subsidy rules and documents, or continue with a plain bank term loan.",
+      "headerHint": "Select a scheme to continue",
+      "briefHint": "Review the scheme, then continue to the form",
+      "changeScheme": "Change scheme",
+      "backToSchemes": "All schemes",
+      "continueToForm": "Next — start DPR steps"
+    },
+    "steps": {
+      "1": "Step 1: Your unit – basic details",
+      "2": "Step 2: Sector overview",
+      "3": "Step 3: District & location",
+      "4": "Step 4: Your unit profile",
+      "5": "Step 5: Value chain",
+      "6": "Step 6: Market",
+      "7": "Step 7: Gaps",
+      "8": "Step 8: SWOT",
+      "9": "Step 9: What you plan to do",
+      "10": "Step 10: Workplace / shed / unit",
+      "11": "Step 11: Applicant / firm",
+      "12": "Step 12: Project cost",
+      "13": "Step 13: Means of finance",
+      "14": "Step 14: Operating cost & sales",
+      "15": "Step 15: Financial viability",
+      "16": "Step 16: Implementation schedule",
+      "17": "Step 17: Expected impact",
+      "18": "Step 18: Document uploads"
+    },
+    "toasts": {
+      "needUnitName": "Please complete Step 1 (Unit / project name) before saving",
+      "needUnitNameGenerate": "Please fill in at least Step 1 (unit name) before generating DPR.",
+      "needNameForAi": "Enter the unit / project name first so AI has something to write about.",
+      "fillNone": "AI could not fill any steps. Try again after adding district and location.",
+      "fillPartial": "Filled {{filled}} steps. Failed: {{failed}}.",
+      "fillSuccess": "Filled {{filled}} steps with AI. Review and edit as needed.",
+      "generateAllFailed": "Failed to generate all steps. Please try again.",
+      "fillingStep": "Filling step {{step}} ({{index}} of {{total}})…",
+      "saveFailedDb": "Failed to save draft to database",
+      "saveSuccess": "Draft saved to database successfully!",
+      "saveFailed": "Failed to save draft",
+      "saveBeforeGenerateFailed": "Failed to save data before generating DPR",
+      "generating": "Generating DPR with AI enhancement...",
+      "generateSuccess": "DPR generated successfully!",
+      "generateFailed": "Failed to generate DPR. Please try again."
+    },
+    "brief": {
+      "benefits": "Benefits",
+      "eligibility": "Eligibility",
+      "howToApply": "How to Apply",
+      "documents": "Documents",
+      "faqs": "FAQs",
+      "quickInfo": "Quick Info",
+      "ministry": "Ministry",
+      "category": "Category",
+      "type": "Type",
+      "status": "Status",
+      "source": "Official source",
+      "disclaimer": "Summary for drafting this DPR. Confirm live ceilings, fees, and GOs with the implementing agency before you apply.",
+      "formNotes": "How this DPR form changes — {{title}}"
+    }
   }
 }
-

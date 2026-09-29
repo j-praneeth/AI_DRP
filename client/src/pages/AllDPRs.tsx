@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/store/authStore';
+import { isSuperAdmin } from '@/lib/rbac';
 import { useDPRStore } from '@/store/dprStore';
 import { 
   FileText, 
@@ -46,7 +47,7 @@ export const AllDPRs: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isSuperAdmin(user?.role);
   const { dprs: cachedDPRs, setDPRs, isStale } = useDPRStore();
   const [dprs, setDprs] = useState<DPR[]>(cachedDPRs);
   const [filteredDprs, setFilteredDprs] = useState<DPR[]>([]);
@@ -468,9 +469,20 @@ export const AllDPRs: React.FC = () => {
                 </>
               )}
             </Button>
-            <Button onClick={() => navigate('/dpr/builder')} className="bg-primary hover:bg-primary/90 text-white">
+            <Button
+              onClick={() => navigate('/venture-match')}
+              variant="outline"
+              className="border-2 border-primary text-primary hover:bg-primary hover:text-white"
+            >
               <Sparkles className="h-4 w-4 mr-2" />
-              Create New DPR
+              {t('dashboard.ventureMatch')}
+            </Button>
+            <Button
+              onClick={() => navigate('/individual-dpr/create?new=true')}
+              className="bg-primary hover:bg-primary/90 text-white"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Create New Latest DPR
             </Button>
           </div>
         </div>
@@ -632,9 +644,9 @@ export const AllDPRs: React.FC = () => {
                     : 'Create your first Detailed Project Report to get started'}
                 </p>
                 {!searchQuery && statusFilter === 'all' && (
-                  <Button onClick={() => navigate('/dpr/builder')} size="lg">
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    Create Your First DPR
+                  <Button onClick={() => navigate('/individual-dpr/create?new=true')} size="lg">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Create New Latest DPR
                   </Button>
                 )}
                 {(searchQuery || statusFilter !== 'all') && (

@@ -237,6 +237,7 @@ class APIClient {
 
   // Auth endpoints
   async register(data: any) {
+    this.clearCache('/auth/profile');
     return this.handleRequest(
       async () => {
         const response = await this.client.post('/auth/register', data);
@@ -247,6 +248,7 @@ class APIClient {
   }
 
   async login(email: string, password: string) {
+    this.clearCache('/auth/profile');
     return this.handleRequest(
       async () => {
         const response = await this.client.post('/auth/login', { email, password });
@@ -254,6 +256,32 @@ class APIClient {
       },
       () => MockDataService.login(email, password)
     );
+  }
+
+  async logout() {
+    try {
+      await this.client.post('/auth/logout');
+    } catch {
+      /* still clear the client session */
+    }
+  }
+
+  async acceptConsent(data: {
+    accountConsent: boolean;
+    aiAssist: boolean;
+    analytics: boolean;
+    noticeVersion: string;
+  }) {
+    this.clearCache('/auth/profile');
+    const response = await this.client.post('/auth/consent', data);
+    return response.data;
+  }
+
+  /** Live profile only — never mock. Used by the re-consent gate. */
+  async getProfileLive() {
+    this.clearCache('/auth/profile');
+    const response = await this.client.get('/auth/profile');
+    return response.data;
   }
 
   async getProfile() {
@@ -271,6 +299,78 @@ class APIClient {
 
   async updateProfile(data: any) {
     const response = await this.client.put('/auth/profile', data);
+    return response.data;
+  }
+
+  async exportMyData() {
+    const response = await this.client.get('/privacy/export', { responseType: 'blob' });
+    return response.data;
+  }
+
+  async updatePrivacyConsent(data: { aiAssist?: boolean; analytics?: boolean }) {
+    this.clearCache('/auth/profile');
+    const response = await this.client.patch('/privacy/consent', data);
+    return response.data;
+  }
+
+  async saveNominee(data: { name: string; phone?: string; email?: string }) {
+    this.clearCache('/auth/profile');
+    const response = await this.client.put('/privacy/nominee', data);
+    return response.data;
+  }
+
+  async deleteMyAccount(confirm: string) {
+    const response = await this.client.delete('/privacy/account', { data: { confirm } });
+    return response.data;
+  }
+
+  async submitPrivacyComplaint(data: { subject: string; message: string }) {
+    const response = await this.client.post('/privacy/complaint', data);
+    return response.data;
+  }
+
+  async getPrivacyActivity() {
+    const response = await this.client.get('/privacy/activity');
+    return response.data;
+  }
+
+  async getNotifications(limit = 30) {
+    const response = await this.client.get('/privacy/notifications', { params: { limit } });
+    return response.data;
+  }
+
+  async markNotificationRead(id: string) {
+    const response = await this.client.post(`/privacy/notifications/${id}/read`);
+    return response.data;
+  }
+
+  async getAuditLog(params?: {
+    userId?: string;
+    action?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const response = await this.client.get('/admin/audit', { params });
+    return response.data;
+  }
+
+  async downloadAuditCsv(params?: {
+    userId?: string;
+    action?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const response = await this.client.get('/admin/audit/csv', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
+  async runRetentionJob() {
+    const response = await this.client.post('/admin/retention/run');
     return response.data;
   }
 
@@ -377,6 +477,56 @@ class APIClient {
   }
 
   // Chat-based DPR generation
+  async analyzeDprBuilderStep(payload: {
+    stepId: string;
+    stepTitle: string;
+    factSheet: any;
+    customInstructions?: string;
+  }) {
+    return this.handleRequest(
+      async () => {
+        const response = await this.client.post('/dpr/builder/analyze', payload, { timeout: 90000 });
+        return response.data;
+      },
+      async () => ({
+        success: true,
+        data: {
+          suggestions: [
+            {
+              title: 'Looks fine',
+              observation: 'Live analysis is unavailable in offline/mock mode.',
+              recommendation: 'Retry Analyze when online.',
+              offloadingIdea: null,
+            },
+          ],
+        },
+      })
+    );
+  }
+
+  async chatDprBuilderStep(payload: {
+    stepId: string;
+    stepTitle: string;
+    factSheet: any;
+    message: string;
+    conversationHistory?: Array<{ role: string; content: string }>;
+    customInstructions?: string;
+  }) {
+    return this.handleRequest(
+      async () => {
+        const response = await this.client.post('/dpr/builder/chat', payload, { timeout: 90000 });
+        return response.data;
+      },
+      async () => ({
+        success: true,
+        data: {
+          response:
+            'I can only discuss this step using the facts already in your project sheet. Live research is unavailable offline — tell me which part of this step you want to improve.',
+        },
+      })
+    );
+  }
+
   async generateDPRFromChat(responses: any, language: string = 'english') {
     const response = await this.client.post('/dpr/generate-from-chat', { responses, language });
     return response.data;
@@ -624,6 +774,13 @@ class APIClient {
     );
   }
 
+  async getClusterFileBlob(fileId: string) {
+    const response = await this.client.get(`/dpr/cluster/files/${fileId}`, {
+      responseType: 'blob',
+    });
+    return response.data as Blob;
+  }
+
   async uploadClusterDPRImage(file: File) {
     return this.handleRequest(
       async () => {
@@ -734,10 +891,12 @@ class APIClient {
   async deleteClusterDPRImage(imageUrl: string, cloudinaryPublicId?: string) {
     return this.handleRequest(
       async () => {
+        const fileId = imageUrl?.startsWith('file:') ? imageUrl.slice(5) : undefined;
         const response = await this.client.delete('/dpr/cluster/images/delete', {
           data: {
             imageUrl,
             publicId: cloudinaryPublicId,
+            fileId,
           },
         });
         return response.data;
@@ -908,6 +1067,44 @@ class APIClient {
   }
 
   // AI endpoints
+  async ventureMatchHelp(payload: {
+    questionId: string;
+    optionIds: string[];
+    optionLabels: Record<string, string>;
+    questionTitle: string;
+    questionLabel: string;
+    answersSoFar: Record<string, unknown>;
+    messages: { role: 'user' | 'assistant'; content: string }[];
+    language: 'en' | 'te';
+    apGuideNotes?: string;
+    clarifyingScript?: Array<{
+      id: string;
+      prompt: string;
+      replies: Array<{ id: string; label: string }>;
+    }>;
+  }) {
+    return this.handleRequest(
+      async () => {
+        const response = await this.client.post('/ai/venture-match/help', payload);
+        return response.data;
+      },
+      async () => ({
+        success: true,
+        data: {
+          mode: 'ask',
+          assistantMessage:
+            payload.language === 'te'
+              ? 'మీ పరిస్థితి ఒక వాక్యంలో చెప్పండి. నేను సరైన ఎంపిక చూపిస్తాను.'
+              : 'Tell me your situation in one sentence. I will point to the right choice.',
+          suggestedUserReplies:
+            payload.language === 'te'
+              ? ['నాకు తెలియదు', 'సహాయం చేయండి']
+              : ['I am not sure', 'Help me pick'],
+        },
+      })
+    );
+  }
+
   async chat(
     message: string,
     conversationHistory: any[] = [],

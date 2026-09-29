@@ -10,6 +10,8 @@ import { AISuggestions } from './AISuggestions';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { FIELD_DESCRIPTIONS } from '@/data/fieldDescriptions';
 import { FinancialStatements } from './FinancialStatements';
+import { useClusterFormText } from '@/lib/clusterDprFormText';
+import { isKycUploaded, kycDisplayName, kycUploadPayload } from '@/lib/privacy/kycField';
 
 interface ClusterDPRFormProps {
   currentStep: number;
@@ -23,6 +25,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
   onPrevious,
 }) => {
   const { data, setStepData, getStepData } = useClusterDPRStore();
+  const tf = useClusterFormText();
   // Read step data directly from store to ensure reactivity
   // This will trigger re-renders when data is loaded from database
   const stepDataKey = `step${currentStep}` as keyof typeof data;
@@ -57,10 +60,10 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
 
     return (
       <label className={`block text-sm font-medium mb-2 ${required ? '' : ''} flex items-center gap-2`}>
-        {label}
+        {tf(label)}
         {required && <span className="text-red-500">*</span>}
         {description && (
-          <InfoTooltip content={description} />
+          <InfoTooltip content={tf(description)} />
         )}
       </label>
     );
@@ -143,86 +146,86 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-              Cluster Name *
+              {tf('Cluster Name *')}
               {stepDescriptions.clusterName && (
-                <InfoTooltip content={stepDescriptions.clusterName} />
+                <InfoTooltip content={tf(stepDescriptions.clusterName)} />
               )}
             </label>
             <Input
               value={stepData.clusterName || ''}
               onChange={(e) => handleInputChange('clusterName', e.target.value)}
-              placeholder="Enter cluster name"
+              placeholder={tf("Enter cluster name")}
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-              District *
+              {tf('District *')}
               {stepDescriptions.district && (
-                <InfoTooltip content={stepDescriptions.district} />
+                <InfoTooltip content={tf(stepDescriptions.district)} />
               )}
             </label>
             <Input
               value={stepData.district || ''}
               onChange={(e) => handleInputChange('district', e.target.value)}
-              placeholder="Enter district"
+              placeholder={tf("Enter district")}
             />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-            Location *
+            {tf('Location *')}
             {stepDescriptions.location && (
-              <InfoTooltip content={stepDescriptions.location} />
+              <InfoTooltip content={tf(stepDescriptions.location)} />
             )}
           </label>
           <Input
             value={stepData.location || ''}
             onChange={(e) => handleInputChange('location', e.target.value)}
-            placeholder="Enter location"
+            placeholder={tf("Enter location")}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-            Geographical Spread
+            {tf('Geographical Spread')}
             {stepDescriptions.geographicalSpread && (
-              <InfoTooltip content={stepDescriptions.geographicalSpread} />
+              <InfoTooltip content={tf(stepDescriptions.geographicalSpread)} />
             )}
           </label>
           <textarea
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.geographicalSpread || ''}
             onChange={(e) => handleInputChange('geographicalSpread', e.target.value)}
-            placeholder="Describe geographical spread"
+            placeholder={tf("Describe geographical spread")}
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-              Nature of Business
+              {tf('Nature of Business')}
               {stepDescriptions.natureOfBusiness && (
-                <InfoTooltip content={stepDescriptions.natureOfBusiness} />
+                <InfoTooltip content={tf(stepDescriptions.natureOfBusiness)} />
               )}
             </label>
             <Input
               value={stepData.natureOfBusiness || ''}
               onChange={(e) => handleInputChange('natureOfBusiness', e.target.value)}
-              placeholder="Enter nature of business"
+              placeholder={tf("Enter nature of business")}
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-              Major Products
+              {tf('Major Products')}
               {stepDescriptions.majorProducts && (
-                <InfoTooltip content={stepDescriptions.majorProducts} />
+                <InfoTooltip content={tf(stepDescriptions.majorProducts)} />
               )}
             </label>
             <Input
               value={stepData.majorProducts || ''}
               onChange={(e) => handleInputChange('majorProducts', e.target.value)}
-              placeholder="Enter major products"
+              placeholder={tf("Enter major products")}
             />
           </div>
         </div>
@@ -238,7 +241,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
         />
 
         <div className="border-t pt-4">
-          <h3 className="text-lg font-semibold mb-4">Enterprise Count</h3>
+          <h3 className="text-lg font-semibold mb-4">{tf("Enterprise Count")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               {renderLabel('enterpriseCount', 'Micro')}
@@ -249,7 +252,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.enterpriseCount,
                   micro: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -261,7 +264,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.enterpriseCount,
                   small: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -273,14 +276,14 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.enterpriseCount,
                   medium: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
           </div>
         </div>
 
         <div className="border-t pt-4">
-          <h3 className="text-lg font-semibold mb-4">Age of Enterprises</h3>
+          <h3 className="text-lg font-semibold mb-4">{tf("Age of Enterprises")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               {renderLabel('ageOfEnterprises', '< 5 years')}
@@ -291,7 +294,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.ageOfEnterprises,
                   lessThan5: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -303,7 +306,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.ageOfEnterprises,
                   between5And10: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -315,14 +318,14 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.ageOfEnterprises,
                   moreThan10: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
           </div>
         </div>
 
         <div className="border-t pt-4">
-          <h3 className="text-lg font-semibold mb-4">Employment per Unit</h3>
+          <h3 className="text-lg font-semibold mb-4">{tf("Employment per Unit")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               {renderLabel('employmentPerUnit', '< 5 employees')}
@@ -333,7 +336,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.employmentPerUnit,
                   lessThan5: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -345,7 +348,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.employmentPerUnit,
                   between5And10: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -357,7 +360,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.employmentPerUnit,
                   moreThan10: parseInt(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
           </div>
@@ -370,7 +373,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.investmentPerUnit || ''}
               onChange={(e) => handleInputChange('investmentPerUnit', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -379,13 +382,13 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.turnoverPerUnit || ''}
               onChange={(e) => handleInputChange('turnoverPerUnit', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
         </div>
 
         <div className="border-t pt-4">
-          <h3 className="text-lg font-semibold mb-4">Market Served (%)</h3>
+          <h3 className="text-lg font-semibold mb-4">{tf("Market Served (%)")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               {renderLabel('marketServed', 'Domestic')}
@@ -398,7 +401,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.marketServed,
                   domestic: parseFloat(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -412,7 +415,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.marketServed,
                   export: parseFloat(e.target.value) || 0,
                 })}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
           </div>
@@ -437,7 +440,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.sectorType || ''}
             onChange={(e) => handleInputChange('sectorType', e.target.value)}
-            placeholder="Enter sector type"
+            placeholder={tf("Enter sector type")}
           />
         </div>
 
@@ -447,7 +450,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.sectorDescription || ''}
             onChange={(e) => handleInputChange('sectorDescription', e.target.value)}
-            placeholder="Describe the sector in detail"
+            placeholder={tf("Describe the sector in detail")}
           />
         </div>
 
@@ -457,7 +460,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.nationalImportance || ''}
             onChange={(e) => handleInputChange('nationalImportance', e.target.value)}
-            placeholder="Describe national importance"
+            placeholder={tf("Describe national importance")}
           />
         </div>
 
@@ -467,7 +470,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.stateLevelImportance || ''}
             onChange={(e) => handleInputChange('stateLevelImportance', e.target.value)}
-            placeholder="Describe state-level importance"
+            placeholder={tf("Describe state-level importance")}
           />
         </div>
 
@@ -483,7 +486,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                     updated[index] = e.target.value;
                     handleInputChange('keyProducts', updated);
                   }}
-                  placeholder="Enter product name"
+                  placeholder={tf("Enter product name")}
                 />
                 <Button
                   variant="ghost"
@@ -526,7 +529,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.geography || ''}
             onChange={(e) => handleInputChange('geography', e.target.value)}
-            placeholder="Describe geography"
+            placeholder={tf("Describe geography")}
           />
         </div>
         <div>
@@ -534,7 +537,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.climate || ''}
             onChange={(e) => handleInputChange('climate', e.target.value)}
-            placeholder="Enter climate details"
+            placeholder={tf("Enter climate details")}
           />
         </div>
         <div>
@@ -543,7 +546,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.infrastructure || ''}
             onChange={(e) => handleInputChange('infrastructure', e.target.value)}
-            placeholder="Describe infrastructure"
+            placeholder={tf("Describe infrastructure")}
           />
         </div>
         <div>
@@ -552,7 +555,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.keyEconomicActivities || ''}
             onChange={(e) => handleInputChange('keyEconomicActivities', e.target.value)}
-            placeholder="Describe key economic activities"
+            placeholder={tf("Describe key economic activities")}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -562,7 +565,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={stepData.rawMaterialAvailability || ''}
               onChange={(e) => handleInputChange('rawMaterialAvailability', e.target.value)}
-              placeholder="Describe raw material availability"
+              placeholder={tf("Describe raw material availability")}
             />
           </div>
           <div>
@@ -570,7 +573,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.rawMaterialQuantity || ''}
               onChange={(e) => handleInputChange('rawMaterialQuantity', e.target.value)}
-              placeholder="Enter quantity"
+              placeholder={tf("Enter quantity")}
             />
           </div>
         </div>
@@ -580,11 +583,11 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.industrialInfrastructure || ''}
             onChange={(e) => handleInputChange('industrialInfrastructure', e.target.value)}
-            placeholder="Describe industrial infrastructure"
+            placeholder={tf("Describe industrial infrastructure")}
           />
         </div>
         <div className="border-t pt-4">
-          <h3 className="text-lg font-semibold mb-4">Connectivity</h3>
+          <h3 className="text-lg font-semibold mb-4">{tf("Connectivity")}</h3>
           <div className="space-y-4">
             <div>
               {renderLabel('connectivity', 'Road')}
@@ -594,7 +597,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.connectivity,
                   road: e.target.value,
                 })}
-                placeholder="Enter road connectivity details"
+                placeholder={tf("Enter road connectivity details")}
               />
             </div>
             <div>
@@ -605,7 +608,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.connectivity,
                   rail: e.target.value,
                 })}
-                placeholder="Enter rail connectivity details"
+                placeholder={tf("Enter rail connectivity details")}
               />
             </div>
             <div>
@@ -616,7 +619,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   ...stepData.connectivity,
                   port: e.target.value,
                 })}
-                placeholder="Enter port connectivity details"
+                placeholder={tf("Enter port connectivity details")}
               />
             </div>
           </div>
@@ -642,7 +645,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             type="number"
             value={stepData.yearOfEstablishment || ''}
             onChange={(e) => handleInputChange('yearOfEstablishment', parseInt(e.target.value) || 0)}
-            placeholder="YYYY"
+            placeholder={tf("YYYY")}
           />
         </div>
         <div>
@@ -651,7 +654,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.clusterEvolution || ''}
             onChange={(e) => handleInputChange('clusterEvolution', e.target.value)}
-            placeholder="Describe cluster evolution"
+            placeholder={tf("Describe cluster evolution")}
           />
         </div>
         <div>
@@ -660,7 +663,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.presentActivities || ''}
             onChange={(e) => handleInputChange('presentActivities', e.target.value)}
-            placeholder="Describe present activities"
+            placeholder={tf("Describe present activities")}
           />
         </div>
         <div>
@@ -668,7 +671,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.typeOfUnits || ''}
             onChange={(e) => handleInputChange('typeOfUnits', e.target.value)}
-            placeholder="Enter type of units"
+            placeholder={tf("Enter type of units")}
           />
         </div>
         <div>
@@ -676,7 +679,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.productionCapacity || ''}
             onChange={(e) => handleInputChange('productionCapacity', e.target.value)}
-            placeholder="Enter production capacity"
+            placeholder={tf("Enter production capacity")}
           />
         </div>
         <div>
@@ -684,7 +687,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.technologyLevel || ''}
             onChange={(e) => handleInputChange('technologyLevel', e.target.value)}
-            placeholder="Enter technology level"
+            placeholder={tf("Enter technology level")}
           />
         </div>
         <div>
@@ -693,9 +696,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.stakeholders)}
             onChange={(e) => handleCommaSeparatedChange('stakeholders', e.target.value)}
-            placeholder="Enter stakeholders separated by commas (e.g., Stakeholder 1, Stakeholder 2, Stakeholder 3)"
+            placeholder={tf("Enter stakeholders separated by commas (e.g., Stakeholder 1, Stakeholder 2, Stakeholder 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple stakeholders with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple stakeholders with commas")}</p>
         </div>
       </div>
     );
@@ -718,7 +721,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             {(Array.isArray(stepData.rawMaterials) ? stepData.rawMaterials : []).map((material: any, index: number) => (
               <div key={index} className="p-4 border rounded-lg space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Raw Material {index + 1}</span>
+                  <span className="text-sm font-medium">{tf('Raw Material')} {index + 1}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -731,12 +734,12 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   <Input
                     value={material.name || ''}
                     onChange={(e) => handleArrayUpdate('rawMaterials', index, { name: e.target.value })}
-                    placeholder="Material name"
+                    placeholder={tf("Material name")}
                   />
                   <Input
                     value={material.source || ''}
                     onChange={(e) => handleArrayUpdate('rawMaterials', index, { source: e.target.value })}
-                    placeholder="Source"
+                    placeholder={tf("Source")}
                   />
                 </div>
               </div>
@@ -759,9 +762,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.intermediateProducts)}
             onChange={(e) => handleCommaSeparatedChange('intermediateProducts', e.target.value)}
-            placeholder="Enter intermediate products separated by commas (e.g., Semi-finished Product 1, Semi-finished Product 2)"
+            placeholder={tf("Enter intermediate products separated by commas (e.g., Semi-finished Product 1, Semi-finished Product 2)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple products with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple products with commas")}</p>
         </div>
 
         <div>
@@ -776,7 +779,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                     updated[index] = e.target.value;
                     handleInputChange('finalProducts', updated);
                   }}
-                  placeholder="Enter final product"
+                  placeholder={tf("Enter final product")}
                 />
                 <Button
                   variant="ghost"
@@ -805,7 +808,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             {(Array.isArray(stepData.valueAdditionStages) ? stepData.valueAdditionStages : []).map((stage: any, index: number) => (
               <div key={index} className="p-4 border rounded-lg space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Stage {index + 1}</span>
+                  <span className="text-sm font-medium">{tf('Stage')} {index + 1}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -818,13 +821,13 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   <Input
                     value={stage.stage || ''}
                     onChange={(e) => handleArrayUpdate('valueAdditionStages', index, { stage: e.target.value })}
-                    placeholder="Stage name"
+                    placeholder={tf("Stage name")}
                   />
                   <Input
                     type="number"
                     value={stage.sellingPrice || ''}
                     onChange={(e) => handleArrayUpdate('valueAdditionStages', index, { sellingPrice: parseFloat(e.target.value) || 0 })}
-                    placeholder="Selling price (₹ Lakhs)"
+                    placeholder={tf("Selling price (₹ Lakhs)")}
                   />
                 </div>
               </div>
@@ -847,9 +850,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.majorBuyers)}
             onChange={(e) => handleCommaSeparatedChange('majorBuyers', e.target.value)}
-            placeholder="Enter major buyers separated by commas (e.g., Buyer 1, Buyer 2, Buyer 3)"
+            placeholder={tf("Enter major buyers separated by commas (e.g., Buyer 1, Buyer 2, Buyer 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple buyers with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple buyers with commas")}</p>
         </div>
       </div>
     );
@@ -872,7 +875,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.existingDemand || ''}
             onChange={(e) => handleInputChange('existingDemand', e.target.value)}
-            placeholder="Describe existing demand"
+            placeholder={tf("Describe existing demand")}
           />
         </div>
         <div>
@@ -881,7 +884,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.demandSupplyGap || ''}
             onChange={(e) => handleInputChange('demandSupplyGap', e.target.value)}
-            placeholder="Describe demand-supply gap"
+            placeholder={tf("Describe demand-supply gap")}
           />
         </div>
         <div>
@@ -890,7 +893,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.targetMarket || ''}
             onChange={(e) => handleInputChange('targetMarket', e.target.value)}
-            placeholder="Describe target market"
+            placeholder={tf("Describe target market")}
           />
         </div>
         <div>
@@ -899,7 +902,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.competitorAnalysis || ''}
             onChange={(e) => handleInputChange('competitorAnalysis', e.target.value)}
-            placeholder="Describe competitor analysis"
+            placeholder={tf("Describe competitor analysis")}
           />
         </div>
         <div>
@@ -908,7 +911,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.priceTrends || ''}
             onChange={(e) => handleInputChange('priceTrends', e.target.value)}
-            placeholder="Describe price trends"
+            placeholder={tf("Describe price trends")}
           />
         </div>
         <div>
@@ -917,7 +920,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.exportPotential || ''}
             onChange={(e) => handleInputChange('exportPotential', e.target.value)}
-            placeholder="Describe export potential"
+            placeholder={tf("Describe export potential")}
           />
         </div>
       </div>
@@ -941,7 +944,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.technologyGaps || ''}
             onChange={(e) => handleInputChange('technologyGaps', e.target.value)}
-            placeholder="Describe technology gaps"
+            placeholder={tf("Describe technology gaps")}
           />
         </div>
         <div>
@@ -950,7 +953,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.infrastructureGaps || ''}
             onChange={(e) => handleInputChange('infrastructureGaps', e.target.value)}
-            placeholder="Describe infrastructure gaps"
+            placeholder={tf("Describe infrastructure gaps")}
           />
         </div>
         <div>
@@ -959,7 +962,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.skillGaps || ''}
             onChange={(e) => handleInputChange('skillGaps', e.target.value)}
-            placeholder="Describe skill gaps"
+            placeholder={tf("Describe skill gaps")}
           />
         </div>
         <div>
@@ -968,7 +971,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.marketingGaps || ''}
             onChange={(e) => handleInputChange('marketingGaps', e.target.value)}
-            placeholder="Describe marketing gaps"
+            placeholder={tf("Describe marketing gaps")}
           />
         </div>
         <div>
@@ -977,7 +980,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.financialGaps || ''}
             onChange={(e) => handleInputChange('financialGaps', e.target.value)}
-            placeholder="Describe financial gaps"
+            placeholder={tf("Describe financial gaps")}
           />
         </div>
         <div>
@@ -986,7 +989,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.justificationForIntervention || ''}
             onChange={(e) => handleInputChange('justificationForIntervention', e.target.value)}
-            placeholder="Provide justification for intervention"
+            placeholder={tf("Provide justification for intervention")}
           />
         </div>
       </div>
@@ -1010,9 +1013,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.strengths)}
             onChange={(e) => handleCommaSeparatedChange('strengths', e.target.value)}
-            placeholder="Enter strengths separated by commas (e.g., Strong market presence, Skilled workforce, Good infrastructure)"
+            placeholder={tf("Enter strengths separated by commas (e.g., Strong market presence, Skilled workforce, Good infrastructure)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple strengths with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple strengths with commas")}</p>
         </div>
         <div>
           {renderLabel('weaknesses', 'Weaknesses')}
@@ -1020,9 +1023,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.weaknesses)}
             onChange={(e) => handleCommaSeparatedChange('weaknesses', e.target.value)}
-            placeholder="Enter weaknesses separated by commas (e.g., Limited technology, Lack of skilled workers, Poor infrastructure)"
+            placeholder={tf("Enter weaknesses separated by commas (e.g., Limited technology, Lack of skilled workers, Poor infrastructure)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple weaknesses with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple weaknesses with commas")}</p>
         </div>
         <div>
           {renderLabel('opportunities', 'Opportunities')}
@@ -1030,9 +1033,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.opportunities)}
             onChange={(e) => handleCommaSeparatedChange('opportunities', e.target.value)}
-            placeholder="Enter opportunities separated by commas (e.g., Growing market demand, Government support, Export potential)"
+            placeholder={tf("Enter opportunities separated by commas (e.g., Growing market demand, Government support, Export potential)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple opportunities with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple opportunities with commas")}</p>
         </div>
         <div>
           {renderLabel('threats', 'Threats')}
@@ -1040,9 +1043,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.threats)}
             onChange={(e) => handleCommaSeparatedChange('threats', e.target.value)}
-            placeholder="Enter threats separated by commas (e.g., Market competition, Price fluctuations, Regulatory changes)"
+            placeholder={tf("Enter threats separated by commas (e.g., Market competition, Price fluctuations, Regulatory changes)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple threats with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple threats with commas")}</p>
         </div>
       </div>
     );
@@ -1066,10 +1069,10 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             value={stepData.interventionType || ''}
             onChange={(e) => handleInputChange('interventionType', e.target.value)}
           >
-            <option value="">Select type</option>
-            <option value="Hard">Hard</option>
-            <option value="Soft">Soft</option>
-            <option value="Both">Both</option>
+            <option value="">{tf("Select type")}</option>
+            <option value="Hard">{tf("Hard")}</option>
+            <option value="Soft">{tf("Soft")}</option>
+            <option value="Both">{tf("Both")}</option>
           </select>
         </div>
         <div>
@@ -1078,7 +1081,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.description || ''}
             onChange={(e) => handleInputChange('description', e.target.value)}
-            placeholder="Describe the intervention"
+            placeholder={tf("Describe the intervention")}
           />
         </div>
         <div>
@@ -1087,9 +1090,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.objectives)}
             onChange={(e) => handleCommaSeparatedChange('objectives', e.target.value)}
-            placeholder="Enter objectives separated by commas (e.g., Objective 1, Objective 2, Objective 3)"
+            placeholder={tf("Enter objectives separated by commas (e.g., Objective 1, Objective 2, Objective 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple objectives with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple objectives with commas")}</p>
         </div>
         <div>
           {renderLabel('expectedBenefits', 'Expected Benefits')}
@@ -1097,9 +1100,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.expectedBenefits)}
             onChange={(e) => handleCommaSeparatedChange('expectedBenefits', e.target.value)}
-            placeholder="Enter expected benefits separated by commas (e.g., Benefit 1, Benefit 2, Benefit 3)"
+            placeholder={tf("Enter expected benefits separated by commas (e.g., Benefit 1, Benefit 2, Benefit 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple benefits with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple benefits with commas")}</p>
         </div>
       </div>
     );
@@ -1122,7 +1125,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.name || ''}
               onChange={(e) => handleInputChange('name', e.target.value)}
-              placeholder="Enter CFC name"
+              placeholder={tf("Enter CFC name")}
             />
           </div>
           <div>
@@ -1130,7 +1133,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.location || ''}
               onChange={(e) => handleInputChange('location', e.target.value)}
-              placeholder="Enter location"
+              placeholder={tf("Enter location")}
             />
           </div>
         </div>
@@ -1140,7 +1143,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.landDetails || ''}
             onChange={(e) => handleInputChange('landDetails', e.target.value)}
-            placeholder="Enter land details"
+            placeholder={tf("Enter land details")}
           />
         </div>
         <div>
@@ -1149,7 +1152,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.civilWorks || ''}
             onChange={(e) => handleInputChange('civilWorks', e.target.value)}
-            placeholder="Describe civil works"
+            placeholder={tf("Describe civil works")}
           />
         </div>
         <div>
@@ -1158,7 +1161,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.manufacturingProcess || ''}
             onChange={(e) => handleInputChange('manufacturingProcess', e.target.value)}
-            placeholder="Describe manufacturing process"
+            placeholder={tf("Describe manufacturing process")}
           />
         </div>
         <div>
@@ -1167,7 +1170,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={stepData.plantAndMachinery || ''}
             onChange={(e) => handleInputChange('plantAndMachinery', e.target.value)}
-            placeholder="Describe plant & machinery"
+            placeholder={tf("Describe plant & machinery")}
           />
         </div>
         <div>
@@ -1175,7 +1178,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.capacity || ''}
             onChange={(e) => handleInputChange('capacity', e.target.value)}
-            placeholder="Enter capacity"
+            placeholder={tf("Enter capacity")}
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1184,7 +1187,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.powerRequirements || ''}
               onChange={(e) => handleInputChange('powerRequirements', e.target.value)}
-              placeholder="Enter power requirements"
+              placeholder={tf("Enter power requirements")}
             />
           </div>
           <div>
@@ -1192,7 +1195,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.waterRequirements || ''}
               onChange={(e) => handleInputChange('waterRequirements', e.target.value)}
-              placeholder="Enter water requirements"
+              placeholder={tf("Enter water requirements")}
             />
           </div>
           <div>
@@ -1200,7 +1203,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.manpowerRequirements || ''}
               onChange={(e) => handleInputChange('manpowerRequirements', e.target.value)}
-              placeholder="Enter manpower requirements"
+              placeholder={tf("Enter manpower requirements")}
             />
           </div>
         </div>
@@ -1225,7 +1228,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.spvName || ''}
               onChange={(e) => handleInputChange('spvName', e.target.value)}
-              placeholder="Enter SPV name"
+              placeholder={tf("Enter SPV name")}
             />
           </div>
           <div>
@@ -1233,7 +1236,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.legalStatus || ''}
               onChange={(e) => handleInputChange('legalStatus', e.target.value)}
-              placeholder="Enter legal status"
+              placeholder={tf("Enter legal status")}
             />
           </div>
         </div>
@@ -1244,7 +1247,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.yearOfIncorporation || ''}
               onChange={(e) => handleInputChange('yearOfIncorporation', parseInt(e.target.value) || 0)}
-              placeholder="YYYY"
+              placeholder={tf("YYYY")}
             />
           </div>
           <div>
@@ -1252,7 +1255,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             <Input
               value={stepData.submittedTo || ''}
               onChange={(e) => handleInputChange('submittedTo', e.target.value)}
-              placeholder="e.g., DIC, District"
+              placeholder={tf("e.g., DIC, District")}
             />
           </div>
         </div>
@@ -1268,7 +1271,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                     updated[index] = e.target.value;
                     handleInputChange('objectives', updated);
                   }}
-                  placeholder="Enter objective"
+                  placeholder={tf("Enter objective")}
                 />
                 <Button
                   variant="ghost"
@@ -1296,9 +1299,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.rolesAndResponsibilities)}
             onChange={(e) => handleCommaSeparatedChange('rolesAndResponsibilities', e.target.value)}
-            placeholder="Enter roles and responsibilities separated by commas (e.g., Role 1, Role 2, Role 3)"
+            placeholder={tf("Enter roles and responsibilities separated by commas (e.g., Role 1, Role 2, Role 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple roles with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple roles with commas")}</p>
         </div>
         <div>
           {renderLabel('boardOfDirectors', 'Board of Directors')}
@@ -1306,7 +1309,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             {(Array.isArray(stepData.boardOfDirectors) ? stepData.boardOfDirectors : []).map((director: any, index: number) => (
               <div key={index} className="p-4 border rounded-lg space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Director {index + 1}</span>
+                  <span className="text-sm font-medium">{tf('Director')} {index + 1}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1319,12 +1322,12 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   <Input
                     value={director.name || ''}
                     onChange={(e) => handleArrayUpdate('boardOfDirectors', index, { name: e.target.value })}
-                    placeholder="Name"
+                    placeholder={tf("Name")}
                   />
                   <Input
                     value={director.designation || ''}
                     onChange={(e) => handleArrayUpdate('boardOfDirectors', index, { designation: e.target.value })}
-                    placeholder="Designation"
+                    placeholder={tf("Designation")}
                   />
                 </div>
               </div>
@@ -1336,7 +1339,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add Director
+              {tf('Add Director')}
             </Button>
           </div>
         </div>
@@ -1346,7 +1349,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             {(Array.isArray(stepData.shareholdingPattern) ? stepData.shareholdingPattern : []).map((share: any, index: number) => (
               <div key={index} className="p-4 border rounded-lg space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Shareholder {index + 1}</span>
+                  <span className="text-sm font-medium">{tf('Shareholder')} {index + 1}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1359,7 +1362,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   <Input
                     value={share.stakeholder || ''}
                     onChange={(e) => handleArrayUpdate('shareholdingPattern', index, { stakeholder: e.target.value })}
-                    placeholder="Stakeholder name"
+                    placeholder={tf("Stakeholder name")}
                   />
                   <Input
                     type="number"
@@ -1367,7 +1370,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                     max="100"
                     value={share.percentage || ''}
                     onChange={(e) => handleArrayUpdate('shareholdingPattern', index, { percentage: parseFloat(e.target.value) || 0 })}
-                    placeholder="Percentage (%)"
+                    placeholder={tf("Percentage (%)")}
                   />
                 </div>
               </div>
@@ -1379,7 +1382,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add Shareholder
+              {tf('Add Shareholder')}
             </Button>
           </div>
         </div>
@@ -1389,7 +1392,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             {(Array.isArray(stepData.memberUnits) ? stepData.memberUnits : []).map((unit: any, index: number) => (
               <div key={index} className="p-4 border rounded-lg space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Unit {index + 1}</span>
+                  <span className="text-sm font-medium">{tf('Unit')} {index + 1}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1402,12 +1405,12 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   <Input
                     value={unit.name || ''}
                     onChange={(e) => handleArrayUpdate('memberUnits', index, { name: e.target.value })}
-                    placeholder="Unit name"
+                    placeholder={tf("Unit name")}
                   />
                   <Input
                     value={unit.registration || ''}
                     onChange={(e) => handleArrayUpdate('memberUnits', index, { registration: e.target.value })}
-                    placeholder="Registration number"
+                    placeholder={tf("Registration number")}
                   />
                 </div>
               </div>
@@ -1419,7 +1422,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add Member Unit
+              {tf('Add Member Unit')}
             </Button>
           </div>
         </div>
@@ -1429,9 +1432,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.statutoryRegistrations)}
             onChange={(e) => handleCommaSeparatedChange('statutoryRegistrations', e.target.value)}
-            placeholder="Enter statutory registrations separated by commas (e.g., Registration 1, Registration 2, Registration 3)"
+            placeholder={tf("Enter statutory registrations separated by commas (e.g., Registration 1, Registration 2, Registration 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple registrations with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple registrations with commas")}</p>
         </div>
       </div>
     );
@@ -1462,7 +1465,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.land || ''}
               onChange={(e) => handleInputChange('land', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1471,7 +1474,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.building || ''}
               onChange={(e) => handleInputChange('building', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1480,7 +1483,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.machinery || ''}
               onChange={(e) => handleInputChange('machinery', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1489,7 +1492,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.utilitiesAndInfrastructure || ''}
               onChange={(e) => handleInputChange('utilitiesAndInfrastructure', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1498,7 +1501,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.preliminaryAndPreOperative || ''}
               onChange={(e) => handleInputChange('preliminaryAndPreOperative', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1507,15 +1510,15 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.workingCapitalMargin || ''}
               onChange={(e) => handleInputChange('workingCapitalMargin', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
         </div>
         <div className="border-t pt-4">
           <div className="bg-primary/10 p-4 rounded-lg">
             <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold">Total Project Cost</span>
-              <span className="text-2xl font-bold text-primary">₹ {totalCost.toLocaleString('en-IN')} Lakhs</span>
+              <span className="text-lg font-semibold">{tf("Total Project Cost")}</span>
+              <span className="text-2xl font-bold text-primary">₹ {totalCost.toLocaleString('en-IN')} {tf("Lakhs")}</span>
             </div>
           </div>
         </div>
@@ -1546,7 +1549,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.spvContribution || ''}
               onChange={(e) => handleInputChange('spvContribution', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1555,7 +1558,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.governmentGrant || ''}
               onChange={(e) => handleInputChange('governmentGrant', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1564,7 +1567,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.bankLoan || ''}
               onChange={(e) => handleInputChange('bankLoan', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1573,15 +1576,15 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.otherSources || ''}
               onChange={(e) => handleInputChange('otherSources', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
         </div>
         <div className="border-t pt-4">
           <div className="bg-primary/10 p-4 rounded-lg">
             <div className="flex items-center justify-between">
-              <span className="text-lg font-semibold">Total Finance</span>
-              <span className="text-2xl font-bold text-primary">₹ {total.toLocaleString('en-IN')} Lakhs</span>
+              <span className="text-lg font-semibold">{tf("Total Finance")}</span>
+              <span className="text-2xl font-bold text-primary">₹ {total.toLocaleString('en-IN')} {tf("Lakhs")}</span>
             </div>
           </div>
         </div>
@@ -1607,7 +1610,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.rawMaterialCost || ''}
               onChange={(e) => handleInputChange('rawMaterialCost', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1616,7 +1619,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.powerCost || ''}
               onChange={(e) => handleInputChange('powerCost', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1625,7 +1628,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.wages || ''}
               onChange={(e) => handleInputChange('wages', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1634,7 +1637,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.maintenance || ''}
               onChange={(e) => handleInputChange('maintenance', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1643,7 +1646,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.administrativeExpenses || ''}
               onChange={(e) => handleInputChange('administrativeExpenses', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1652,7 +1655,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.marketingExpenses || ''}
               onChange={(e) => handleInputChange('marketingExpenses', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1661,7 +1664,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.annualProductionVolume || ''}
               onChange={(e) => handleInputChange('annualProductionVolume', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1670,7 +1673,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.annualSalesRealization || ''}
               onChange={(e) => handleInputChange('annualSalesRealization', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
         </div>
@@ -1692,7 +1695,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
         
         {/* Basic Financial Indicators */}
         <div className="border rounded-lg p-6 space-y-4">
-          <h4 className="text-lg font-semibold">Basic Financial Indicators</h4>
+          <h4 className="text-lg font-semibold">{tf("Basic Financial Indicators")}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               {renderLabel('breakEvenPoint', 'Break-even Point (₹ Lakhs)')}
@@ -1700,7 +1703,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                 type="number"
                 value={stepData.breakEvenPoint || ''}
                 onChange={(e) => handleInputChange('breakEvenPoint', parseFloat(e.target.value) || 0)}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -1709,7 +1712,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                 type="number"
                 value={stepData.irr || ''}
                 onChange={(e) => handleInputChange('irr', parseFloat(e.target.value) || 0)}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
             <div>
@@ -1718,7 +1721,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                 type="number"
                 value={stepData.npv || ''}
                 onChange={(e) => handleInputChange('npv', parseFloat(e.target.value) || 0)}
-                placeholder="0"
+                placeholder={tf("0")}
               />
             </div>
           </div>
@@ -1728,7 +1731,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               className="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={stepData.sensitivityAnalysis || ''}
               onChange={(e) => handleInputChange('sensitivityAnalysis', e.target.value)}
-              placeholder="Describe sensitivity analysis"
+              placeholder={tf("Describe sensitivity analysis")}
             />
           </div>
         </div>
@@ -1776,7 +1779,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             {(Array.isArray(stepData.milestones) ? stepData.milestones : []).map((milestone: any, index: number) => (
               <div key={index} className="p-4 border rounded-lg space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Milestone {index + 1}</span>
+                  <span className="text-sm font-medium">{tf('Milestone')} {index + 1}</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1789,25 +1792,25 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
                   <Input
                     value={milestone.activity || ''}
                     onChange={(e) => handleArrayUpdate('milestones', index, { activity: e.target.value })}
-                    placeholder="Activity name"
+                    placeholder={tf("Activity name")}
                   />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <Input
                       value={milestone.timeRequired || ''}
                       onChange={(e) => handleArrayUpdate('milestones', index, { timeRequired: e.target.value })}
-                      placeholder="Time required"
+                      placeholder={tf("Time required")}
                     />
                     <Input
                       type="date"
                       value={milestone.startDate || ''}
                       onChange={(e) => handleArrayUpdate('milestones', index, { startDate: e.target.value })}
-                      placeholder="Start date"
+                      placeholder={tf("Start date")}
                     />
                     <Input
                       type="date"
                       value={milestone.endDate || ''}
                       onChange={(e) => handleArrayUpdate('milestones', index, { endDate: e.target.value })}
-                      placeholder="End date"
+                      placeholder={tf("End date")}
                     />
                   </div>
                 </div>
@@ -1820,7 +1823,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Add Milestone
+              {tf('Add Milestone')}
             </Button>
           </div>
         </div>
@@ -1829,7 +1832,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
           <Input
             value={stepData.totalImplementationPeriod || ''}
             onChange={(e) => handleInputChange('totalImplementationPeriod', e.target.value)}
-            placeholder="e.g., 18 months"
+            placeholder={tf("e.g., 18 months")}
           />
         </div>
       </div>
@@ -1854,7 +1857,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.increaseInUnits || ''}
               onChange={(e) => handleInputChange('increaseInUnits', parseInt(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1863,7 +1866,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.employmentGeneration || ''}
               onChange={(e) => handleInputChange('employmentGeneration', parseInt(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1872,7 +1875,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.turnoverGrowth || ''}
               onChange={(e) => handleInputChange('turnoverGrowth', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1881,7 +1884,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.exportGrowth || ''}
               onChange={(e) => handleInputChange('exportGrowth', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
           <div>
@@ -1890,7 +1893,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
               type="number"
               value={stepData.incomeEnhancement || ''}
               onChange={(e) => handleInputChange('incomeEnhancement', parseFloat(e.target.value) || 0)}
-              placeholder="0"
+              placeholder={tf("0")}
             />
           </div>
         </div>
@@ -1900,9 +1903,9 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={normalizeToString(stepData.sustainabilityOutcomes)}
             onChange={(e) => handleCommaSeparatedChange('sustainabilityOutcomes', e.target.value)}
-            placeholder="Enter sustainability outcomes separated by commas (e.g., Outcome 1, Outcome 2, Outcome 3)"
+            placeholder={tf("Enter sustainability outcomes separated by commas (e.g., Outcome 1, Outcome 2, Outcome 3)")}
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple outcomes with commas</p>
+          <p className="text-xs text-muted-foreground mt-1">{tf("Separate multiple outcomes with commas")}</p>
         </div>
       </div>
     );
@@ -1918,9 +1921,8 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
         try {
           // Upload to Cloudinary
           const uploadResult = await api.uploadClusterDPRDocument(file);
-          if (uploadResult.success && uploadResult.data?.documentUrl) {
-            // Store the Cloudinary URL, not just the filename
-            handleInputChange(field, uploadResult.data.documentUrl);
+          if (uploadResult.success && uploadResult.data) {
+            handleInputChange(field, kycUploadPayload(uploadResult.data, file.name));
             toast.success(`${file.name} uploaded successfully!`);
           } else {
             toast.error(uploadResult.message || 'Failed to upload document');
@@ -1942,40 +1944,32 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
       if (!files || files.length === 0) return;
 
       const fileArray = Array.from(files);
-      const uploadedUrls: string[] = [];
+      const uploadedRefs: any[] = [];
 
       setUploadingFiles(prev => ({ ...prev, supportingDocuments: true }));
       try {
         for (const file of fileArray) {
           try {
             const uploadResult = await api.uploadClusterDPRDocument(file);
-            if (uploadResult.success && uploadResult.data?.documentUrl) {
-              uploadedUrls.push(uploadResult.data.documentUrl);
+            if (uploadResult.success && uploadResult.data) {
+              uploadedRefs.push(kycUploadPayload(uploadResult.data, file.name));
             } else {
-              // Fallback to filename if upload fails
-              uploadedUrls.push(file.name);
+              uploadedRefs.push(kycUploadPayload({}, file.name));
             }
           } catch (error) {
             console.error('Error uploading file:', file.name, error);
-            uploadedUrls.push(file.name);
+            uploadedRefs.push(kycUploadPayload({}, file.name));
           }
         }
-        handleInputChange('supportingDocuments', uploadedUrls);
-        toast.success(`${uploadedUrls.length} document(s) uploaded!`);
+        handleInputChange('supportingDocuments', uploadedRefs);
+        toast.success(`${uploadedRefs.length} document(s) uploaded!`);
       } finally {
         setUploadingFiles(prev => ({ ...prev, supportingDocuments: false }));
       }
     };
 
     // Helper to display filename from URL
-    const getDisplayName = (urlOrName: string): string => {
-      if (urlOrName.startsWith('http://') || urlOrName.startsWith('https://')) {
-        // Extract filename from URL
-        const urlParts = urlOrName.split('/');
-        return urlParts[urlParts.length - 1] || urlOrName;
-      }
-      return urlOrName;
-    };
+    const getDisplayName = (urlOrName: unknown): string => kycDisplayName(urlOrName);
 
     return (
       <div className="space-y-6">
@@ -2002,7 +1996,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             )}
           </div>
           {stepData.spvRegistration && (
-            <p className="text-sm text-green-600 mt-1">✓ Uploaded: {getDisplayName(stepData.spvRegistration)}</p>
+            <p className="text-sm text-green-600 mt-1">✓ {tf('Uploaded')}: {getDisplayName(stepData.spvRegistration)}</p>
           )}
         </div>
         <div>
@@ -2021,7 +2015,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             )}
           </div>
           {stepData.landDocuments && (
-            <p className="text-sm text-green-600 mt-1">✓ Uploaded: {getDisplayName(stepData.landDocuments)}</p>
+            <p className="text-sm text-green-600 mt-1">✓ {tf('Uploaded')}: {getDisplayName(stepData.landDocuments)}</p>
           )}
         </div>
         <div>
@@ -2040,7 +2034,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             )}
           </div>
           {stepData.buildingEstimates && (
-            <p className="text-sm text-green-600 mt-1">✓ Uploaded: {getDisplayName(stepData.buildingEstimates)}</p>
+            <p className="text-sm text-green-600 mt-1">✓ {tf('Uploaded')}: {getDisplayName(stepData.buildingEstimates)}</p>
           )}
         </div>
         <div>
@@ -2059,7 +2053,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             )}
           </div>
           {stepData.machineryQuotations && (
-            <p className="text-sm text-green-600 mt-1">✓ Uploaded: {getDisplayName(stepData.machineryQuotations)}</p>
+            <p className="text-sm text-green-600 mt-1">✓ {tf('Uploaded')}: {getDisplayName(stepData.machineryQuotations)}</p>
           )}
         </div>
         <div>
@@ -2078,7 +2072,7 @@ export const ClusterDPRForm: React.FC<ClusterDPRFormProps> = ({
             )}
           </div>
           {stepData.memberRegistrations && (
-            <p className="text-sm text-green-600 mt-1">✓ Uploaded: {getDisplayName(stepData.memberRegistrations)}</p>
+            <p className="text-sm text-green-600 mt-1">✓ {tf('Uploaded')}: {getDisplayName(stepData.memberRegistrations)}</p>
           )}
         </div>
         <div>

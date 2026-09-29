@@ -4,9 +4,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLinkHandler } from '@/lib/linkUtils';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
+import { api } from '@/lib/api';
+import { canAccessAdmin } from '@/lib/rbac';
+import { RoleBadge } from '@/components/auth/RolePicker';
 import { Button } from '@/components/ui/Button';
-import { Languages, LogOut, User, Menu, X } from 'lucide-react';
+import { Languages, LogOut, User, Menu, X, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 
 export const Navbar: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -16,14 +20,15 @@ export const Navbar: React.FC = () => {
   const handleLinkClick = useLinkHandler();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await api.logout();
     logout();
     navigate('/login');
     setMobileMenuOpen(false);
   };
 
   const toggleLanguage = () => {
-    const newLang = i18n.language === 'en' ? 'te' : 'en';
+    const newLang = i18n.language.startsWith('te') ? 'en' : 'te';
     i18n.changeLanguage(newLang);
   };
 
@@ -36,7 +41,7 @@ export const Navbar: React.FC = () => {
     { path: '/dprs', label: t('nav.allDPRs'), icon: '📄' },
     { path: '/projects', label: t('nav.projects'), icon: '📁' },
     { path: '/chat', label: t('nav.chat'), icon: '💬' },
-    ...(user?.role === 'admin' ? [
+    ...(canAccessAdmin(user?.role) ? [
       { path: '/admin', label: t('nav.admin'), icon: '⚙️' },
       { path: '/admin/documents', label: t('nav.documents'), icon: '📄' },
     ] : []),
@@ -82,11 +87,13 @@ export const Navbar: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={toggleLanguage}
-              className="hidden sm:flex items-center gap-2"
+              className="flex items-center gap-2"
             >
               <Languages className="h-4 w-4" />
-              <span className="font-medium">{i18n.language === 'en' ? 'తెలుగు' : 'English'}</span>
+              <span className="font-medium">{i18n.language.startsWith('te') ? 'English' : 'తెలుగు'}</span>
             </Button>
+
+            {isAuthenticated && <NotificationBell />}
 
             {isAuthenticated ? (
               <>
@@ -95,6 +102,13 @@ export const Navbar: React.FC = () => {
                     <Button variant="ghost" size="sm" className="flex items-center gap-2">
                       <User className="h-4 w-4" />
                       <span className="font-medium">{user?.name}</span>
+                      <RoleBadge role={user?.role} />
+                    </Button>
+                  </a>
+                  <a href="/account/privacy" onClick={(e) => handleLinkClick(e, '/account/privacy')}>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span className="font-medium">{t('nav.privacy')}</span>
                     </Button>
                   </a>
                   <Button
@@ -155,6 +169,14 @@ export const Navbar: React.FC = () => {
                 </a>
               ))}
               <div className="pt-4 border-t border-border space-y-2">
+                <button
+                  type="button"
+                  onClick={toggleLanguage}
+                  className="w-full flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-accent text-left"
+                >
+                  <Languages className="h-4 w-4" />
+                  {i18n.language.startsWith('te') ? 'English' : 'తెలుగు'}
+                </button>
                 <a
                   href="/profile"
                   onClick={(e) => {
@@ -165,6 +187,18 @@ export const Navbar: React.FC = () => {
                 >
                   <User className="h-4 w-4" />
                   <span>{user?.name}</span>
+                  <RoleBadge role={user?.role} />
+                </a>
+                <a
+                  href="/account/privacy"
+                  onClick={(e) => {
+                    handleLinkClick(e, '/account/privacy');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-accent"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>{t('nav.privacy')}</span>
                 </a>
                 <button
                   onClick={handleLogout}

@@ -29,6 +29,8 @@ import {
 import { downloadBlob } from '@/lib/utils';
 import { FormattedText } from '@/utils/textFormatter';
 import { ClusterDPRDocumentView } from '@/components/cluster-dpr/ClusterDPRDocumentView';
+import { IndividualDPRDocumentView } from '@/components/individual-dpr/IndividualDPRDocumentView';
+import { isIndividualDprRecord } from '@/lib/individualDpr/individualDocModel';
 import { captureElementAsStandaloneHTML } from '@/lib/htmlCapture';
 
 export const DPRPreview: React.FC = () => {
@@ -65,6 +67,7 @@ export const DPRPreview: React.FC = () => {
   }, [dprId]);
 
   const [isClusterDPR, setIsClusterDPR] = useState(false);
+  const [isIndividualDPR, setIsIndividualDPR] = useState(false);
 
   const loadDPR = async () => {
     try {
@@ -85,12 +88,17 @@ export const DPRPreview: React.FC = () => {
       
       setDpr(dprData);
       
-      // Check if this is a cluster DPR (will be updated when project loads)
-      const isCluster = dprData.content?.english?.isClusterDPR || 
-                       dprData.content?.telugu?.isClusterDPR ||
-                       dprData.metadata?.isClusterDPR ||
-                       dprData.content?.english?.clusterData ||
-                       dprData.metadata?.clusterData;
+      const individual = isIndividualDprRecord(dprData, null);
+      setIsIndividualDPR(individual);
+      const isCluster =
+        !individual &&
+        !!(
+          dprData.content?.english?.isClusterDPR ||
+          dprData.content?.telugu?.isClusterDPR ||
+          dprData.metadata?.isClusterDPR ||
+          dprData.content?.english?.clusterData ||
+          dprData.metadata?.clusterData
+        );
       setIsClusterDPR(isCluster);
       
       // Load project data
@@ -103,6 +111,10 @@ export const DPRPreview: React.FC = () => {
             // Check if cluster DPR based on project type
             if (projectData.projectType === 'cluster') {
               setIsClusterDPR(true);
+              setIsIndividualDPR(false);
+            } else if (projectData.projectType === 'individual' || isIndividualDprRecord(dprData, projectData)) {
+              setIsClusterDPR(false);
+              setIsIndividualDPR(true);
             }
           } catch (projectError) {
             console.warn('Failed to load project, using projectId from DPR:', projectError);
@@ -258,15 +270,26 @@ export const DPRPreview: React.FC = () => {
 
       let blob;
       if (format === 'pdf') {
-        // For Cluster DPRs: generate PDF from the actual rendered DOM + CSS so download matches preview 1:1
-        if (isClusterDPR) {
-          const root = document.querySelector('.dpr-document');
-          if (!root) {
-            throw new Error('Preview root not found');
-          }
-          const html = captureElementAsStandaloneHTML(root);
-          blob = await api.downloadPDFExactFromHTML(dprId!, html, viewLanguage);
+        // Cluster + Latest individual: capture the on-screen Q&A document (not the cluster server PDF)
+        if (isIndividualDPR) {
+          // Server A4 template (16mm margins) — DOM capture was clipping tables at the page edge
+          blob = await api.downloadPDF(dprId!, viewLanguage, enhancedParagraphs);
           downloadBlob(blob, `DPR_${project?.projectName || 'Report'}_${viewLanguage}.pdf`);
+        } else if (isClusterDPR) {
+          const root = document.querySelector('.dpr-document');
+          if (root) {
+            try {
+              const html = captureElementAsStandaloneHTML(root);
+              blob = await api.downloadPDFExactFromHTML(dprId!, html, viewLanguage);
+            } catch (htmlErr) {
+              console.warn('HTML PDF failed, using server PDF', htmlErr);
+              blob = await api.downloadPDF(dprId!, viewLanguage, enhancedParagraphs);
+            }
+            downloadBlob(blob, `DPR_${project?.projectName || 'Report'}_${viewLanguage}.pdf`);
+          } else {
+            blob = await api.downloadPDF(dprId!, viewLanguage, enhancedParagraphs);
+            downloadBlob(blob, `DPR_${project?.projectName || 'Report'}_${viewLanguage}.pdf`);
+          }
         } else {
           blob = await api.downloadPDF(dprId!, viewLanguage, enhancedParagraphs);
           downloadBlob(blob, `DPR_${project?.projectName || 'Report'}_${viewLanguage}.pdf`);
@@ -775,7 +798,7 @@ export const DPRPreview: React.FC = () => {
         )}
 
         {/* DPR Sections */}
-        {isClusterDPR ? (
+        {isIndividualDPR || isClusterDPR ? (
           <Card className="border-2 shadow-lg">
             <CardHeader className="flex-shrink-0 border-b border-border">
               <div className="flex items-center justify-between">
@@ -827,8 +850,12 @@ export const DPRPreview: React.FC = () => {
                   height: `${100 / previewZoom}%`,
                 }}
               >
-                <div className="bg-white shadow-2xl mx-auto" style={{ width: '21cm', minHeight: '29.7cm' }}>
-                  <ClusterDPRDocumentView dpr={dpr} project={project} viewLanguage={viewLanguage} />
+                <div className="bg-white shadow-2xl mx-auto" style={{ width: '21cm', minHeight: '29.7cm', padding: '2rem' }}>
+                  {isIndividualDprRecord(dpr, project) ? (
+                    <IndividualDPRDocumentView dpr={dpr} project={project} viewLanguage={viewLanguage} />
+                  ) : (
+                    <ClusterDPRDocumentView dpr={dpr} project={project} viewLanguage={viewLanguage} />
+                  )}
                 </div>
               </div>
             </CardContent>

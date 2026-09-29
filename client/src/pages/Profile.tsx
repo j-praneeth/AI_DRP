@@ -7,11 +7,15 @@ import { Layout } from '@/components/layout/Layout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, Mail, Building2, MapPin, Save, Loader2 } from 'lucide-react';
+import { User, Mail, Building2, MapPin, Save, Loader2, Shield, ShieldCheck, Phone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { RoleBadge } from '@/components/auth/RolePicker';
+import { ROLE_META, toAppRole } from '@/lib/rbac';
+import { useNavigate } from 'react-router-dom';
 
 export const Profile: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { user: authUser, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -21,6 +25,7 @@ export const Profile: React.FC = () => {
     role: '',
     udyamNumber: '',
     location: '',
+    phoneNumber: '',
   });
 
   useEffect(() => {
@@ -36,6 +41,7 @@ export const Profile: React.FC = () => {
           role: profileData.role || authUser?.role || '',
           udyamNumber: profileData.udyamNumber || authUser?.udyamNumber || '',
           location: profileData.location || authUser?.location || '',
+          phoneNumber: profileData.phoneNumber || authUser?.phoneNumber || '',
         });
       } catch (error: any) {
         console.error('Error fetching profile:', error);
@@ -47,6 +53,7 @@ export const Profile: React.FC = () => {
             role: authUser.role || '',
             udyamNumber: authUser.udyamNumber || '',
             location: authUser.location || '',
+            phoneNumber: authUser.phoneNumber || '',
           });
         } else {
           toast.error('Failed to load profile');
@@ -76,6 +83,7 @@ export const Profile: React.FC = () => {
         name: formData.name,
         udyamNumber: formData.udyamNumber,
         location: formData.location,
+        phoneNumber: formData.phoneNumber,
       });
 
       const updatedUser = response.data || response;
@@ -158,20 +166,18 @@ export const Profile: React.FC = () => {
 
                 <div className="space-y-2">
                   <label htmlFor="role" className="text-sm font-medium text-foreground flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
+                    <Shield className="h-4 w-4" />
                     Role
                   </label>
-                  <Input
-                    id="role"
-                    name="role"
-                    type="text"
-                    value={formData.role}
-                    onChange={handleChange}
-                    disabled
-                    className="bg-muted cursor-not-allowed capitalize"
-                    placeholder="Role"
-                  />
-                  <p className="text-xs text-muted-foreground">Role cannot be changed</p>
+                  <div className="flex flex-col gap-2 rounded-md border bg-muted/40 px-3 py-3">
+                    <RoleBadge role={formData.role} />
+                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                      {ROLE_META[toAppRole(formData.role)].permissionKeys.map((key) => (
+                        <li key={key}>{t(key)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{t('rbac.roleCannotChange')}</p>
                 </div>
 
                 <div className="space-y-2">
@@ -187,6 +193,22 @@ export const Profile: React.FC = () => {
                     onChange={handleChange}
                     placeholder="Enter your Udyam registration number"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="phoneNumber" className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    {t('auth.phoneNumber')}
+                  </label>
+                  <Input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    value={formData.phoneNumber}
+                    onChange={handleChange}
+                    placeholder="+91 9876543210"
+                  />
+                  <p className="text-xs text-muted-foreground">{t('privacy.phoneHint')}</p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -225,6 +247,21 @@ export const Profile: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              {t('privacy.settingsTitle')}
+            </CardTitle>
+            <CardDescription>{t('privacy.settingsSubtitle')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button type="button" variant="outline" onClick={() => navigate('/account/privacy')}>
+              {t('privacy.openSettings')}
+            </Button>
           </CardContent>
         </Card>
       </div>

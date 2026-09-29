@@ -4,12 +4,24 @@ import { Sparkles, Loader2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { AISuggestionsService, AISuggestion } from '@/services/aiSuggestions.service';
 import { useClusterDPRStore } from '@/store/clusterDPRStore';
 import { toast } from 'react-hot-toast';
+import { extraFieldsForScheme } from '@/lib/individualDpr/schemeFormConfig';
+import { getSchemeSteps } from '@/lib/individualDpr/schemeStepCatalog';
+import { getUnitName } from '@/lib/individualDpr/toIndividualPayload';
+import { normalizeMilestones, toDateInputValue } from '@/lib/dprAiFieldNormalize';
+import { useClusterFormText } from '@/lib/clusterDprFormText';
+import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '@/store/authStore';
 
 interface AISuggestionsProps {
   currentStep: number;
   currentStepData: any;
   onApplySuggestion?: (field: string, content: string) => void;
   excludeFields?: string[];
+  data?: any;
+  setStepData?: (step: number, stepData: any) => void;
+  getStepData?: (step: number) => any;
+  contextHint?: string;
+  isIndividualDPR?: boolean;
 }
 
 export const AISuggestions: React.FC<AISuggestionsProps> = ({
@@ -17,14 +29,27 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
   currentStepData,
   onApplySuggestion,
   excludeFields = [],
+  data: dataProp,
+  setStepData: setStepDataProp,
+  getStepData: getStepDataProp,
+  contextHint,
+  isIndividualDPR = false,
 }) => {
-  const { data, setStepData, getStepData } = useClusterDPRStore();
+  const clusterStore = useClusterDPRStore();
+  const tf = useClusterFormText();
+  const { t } = useTranslation();
+  const { user } = useAuthStore();
+  const aiAllowed = !!user?.privacy?.aiAssist;
+  const data = dataProp ?? clusterStore.data;
+  const setStepData = setStepDataProp ?? clusterStore.setStepData;
+  const getStepData = getStepDataProp ?? clusterStore.getStepData;
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [hasGenerated, setHasGenerated] = useState(false);
-  const [applyingFields, setApplyingFields] = useState<Set<string>>(new Set());
+  const schemeExtraFields = extraFieldsForScheme(isIndividualDPR ? data?.matchedSchemeCode : null);
   const [applyingAll, setApplyingAll] = useState(false);
+  const [applyingFields, setApplyingFields] = useState<Set<string>>(new Set());
 
   // For Step 1, we'll show AI suggestions but exclude certain fields (clusterName, location, district)
   // These are basic identifiers that users should enter manually
@@ -32,6 +57,22 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
   // Collect previous steps data (in-memory) - use useMemo to avoid recalculating
   const previousStepsData = React.useMemo(() => {
     const previousData: Record<string, any> = {};
+    if (isIndividualDPR) {
+      const schemeCode = data?.matchedSchemeCode || null;
+      const catalog = getSchemeSteps(schemeCode);
+      const currentLocal = catalog.find((s) => s.contentStep === currentStep)?.n ?? currentStep;
+      for (const def of catalog) {
+        if (def.n >= currentLocal) continue;
+        const stepKey = `step${def.contentStep}`;
+        if (data[stepKey as keyof typeof data]) {
+          previousData[stepKey] = data[stepKey as keyof typeof data];
+        }
+      }
+      if (data.step1 && !previousData.step1) previousData.step1 = data.step1;
+      previousData._isIndividualDPR = true;
+      if (data?.matchedSchemeCode) previousData._schemeCode = data.matchedSchemeCode;
+      return previousData;
+    }
     for (let i = 1; i < currentStep; i++) {
       const stepKey = `step${i}`;
       if (data[stepKey as keyof typeof data]) {
@@ -39,9 +80,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
       }
     }
     return previousData;
-  }, [currentStep, data]);
+  }, [currentStep, data, isIndividualDPR]);
 
-  const hasPreviousData = previousStepsData.step1 && Object.keys(previousStepsData.step1).length > 0;
+  const hasPreviousData = Boolean(
+    (previousStepsData.step1 && Object.keys(previousStepsData.step1).length > 0) ||
+      (isIndividualDPR && getUnitName(data?.step1))
+  );
 
   // Reset suggestions when step changes
   useEffect(() => {
@@ -51,6 +95,10 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
 
   // Function to generate AI suggestions
   const handleGenerateSuggestions = async () => {
+    if (!aiAllowed) {
+      toast.error(t('privacy.aiOffWarning'));
+      return;
+    }
     // For Step 1, we don't require previous data
     if (currentStep > 1 && !hasPreviousData) {
       return;
@@ -73,7 +121,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
       const aiSuggestions = await AISuggestionsService.getSuggestionsForStep(
         currentStep,
         currentStepData,
-        previousStepsData,
+        {
+          ...previousStepsData,
+          ...(isIndividualDPR ? { _isIndividualDPR: true } : {}),
+          ...(isIndividualDPR && data?.matchedSchemeCode ? { _schemeCode: data.matchedSchemeCode } : {}),
+          ...(contextHint ? { _promptContext: contextHint } : {}),
+        },
         excludeFields
       );
       
@@ -86,9 +139,31 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
       }
       
       // Filter out excluded fields from suggestions
-      const filteredSuggestions = (aiSuggestions || []).filter(
-        (suggestion) => !excludeFields.includes(suggestion.field)
-      );
+      const filteredSuggestions = (aiSuggestions || []).filter((suggestion) => {
+        if (excludeFields.includes(suggestion.field)) return false;
+        if (
+          isIndividualDPR &&
+          [
+            'enterpriseCount',
+            'ageOfEnterprises',
+            'employmentPerUnit',
+            'investmentPerUnit',
+            'turnoverPerUnit',
+            'marketServed',
+            'shareholdingPattern',
+            'memberUnits',
+            'rolesAndResponsibilities',
+            'statutoryRegistrations',
+            'irr',
+            'npv',
+            'sensitivityAnalysis',
+            'increaseInUnits',
+          ].includes(suggestion.field)
+        ) {
+          return false;
+        }
+        return true;
+      });
       setSuggestions(filteredSuggestions);
       setHasGenerated(true);
     } catch (error) {
@@ -160,11 +235,23 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
             }));
             console.log(`✅ Transformed memberUnits to object format:`, parsedContent);
           }
+        } else if (field === 'milestones') {
+          parsedContent = normalizeMilestones(parsedContent);
         }
       }
     } catch {
       parsedContent = content;
       console.log(`✅ Using plain text content for ${field}:`, parsedContent);
+    }
+
+    if (field === 'startDate' || field === 'endDate') {
+      const dateValue = toDateInputValue(parsedContent);
+      return dateValue || null;
+    }
+
+    if (field === 'milestones') {
+      const rows = normalizeMilestones(parsedContent);
+      return rows.length ? rows : null;
     }
 
     if (
@@ -182,6 +269,23 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
   // Function to extract value directly from suggestion text (fast path)
   const extractValueFromSuggestion = (field: string, suggestionText: string): any => {
     if (!suggestionText) return null;
+
+    if (field === 'startDate' || field === 'endDate') {
+      return toDateInputValue(suggestionText) || null;
+    }
+
+    if (field === 'milestones') {
+      try {
+        const arrayMatch = suggestionText.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          const parsed = JSON.parse(arrayMatch[0]);
+          const rows = normalizeMilestones(parsed);
+          if (rows.length) return rows;
+        }
+      } catch {
+        /* fall through */
+      }
+    }
 
     // Try to find JSON objects/arrays in the suggestion text
     try {
@@ -216,10 +320,8 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
                 console.log('✅ Extracted connectivity object:', parsed);
                 return parsed;
               }
-              // For other object fields, return if it's a valid object
-              if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-                return parsed;
-              }
+              // Only return a generic object when this field is expected to be an object
+              // (never for date/text fields — a `{...}` in the reasoning text would wipe the input)
             } catch (e) {
               // Continue searching
             }
@@ -315,6 +417,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
         }
       }
 
+      if (schemeExtraFields.includes(suggestion.field)) {
+        if (onApplySuggestion) onApplySuggestion(suggestion.field, finalContent);
+        toast.success(`Applied AI suggestion to ${suggestion.field}`);
+        return;
+      }
+
       // Get the latest stepData from store to avoid stale data
       const latestStepData = getStepData(currentStep) || {};
       
@@ -388,6 +496,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
             continue;
           }
 
+          if (schemeExtraFields.includes(suggestion.field)) {
+            if (onApplySuggestion) onApplySuggestion(suggestion.field, parsedContent);
+            appliedCount += 1;
+            continue;
+          }
+
           updatedStepData = {
             ...updatedStepData,
             [suggestion.field]: parsedContent,
@@ -433,6 +547,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
         
         for (const result of results) {
           if (result) {
+            if (schemeExtraFields.includes(result.field)) {
+              if (onApplySuggestion) onApplySuggestion(result.field, result.content);
+              appliedCount += 1;
+              continue;
+            }
+
             updatedStepData = {
               ...updatedStepData,
               [result.field]: result.content,
@@ -461,6 +581,14 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
     }
   };
 
+  if (!aiAllowed) {
+    return (
+      <div className="mb-4 p-3 bg-muted/50 border border-muted rounded-lg">
+        <p className="text-xs text-muted-foreground">{t('privacy.aiOffWarning')}</p>
+      </div>
+    );
+  }
+
   // Show button to generate suggestions if not generated yet
   if (!hasGenerated && !loading) {
     // For Step 1, we don't require previous data
@@ -469,7 +597,7 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
         <div className="mb-4 p-3 bg-muted/50 border border-muted rounded-lg">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Sparkles className="h-4 w-4" />
-            <span className="text-xs">Complete Step 1 first to get AI suggestions for this step.</span>
+            <span className="text-xs">{tf('Complete Step 1 first to get AI suggestions for this step.')}</span>
           </div>
         </div>
       );
@@ -481,9 +609,9 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             <div>
-              <p className="text-sm font-semibold text-gray-900">Get AI Suggestions</p>
+              <p className="text-sm font-semibold text-gray-900">{tf('Get AI Suggestions')}</p>
               <p className="text-xs text-muted-foreground">
-                Get contextual recommendations based on your previous step data
+                {tf('Get contextual recommendations based on your previous step data')}
               </p>
             </div>
           </div>
@@ -493,7 +621,7 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium"
           >
             <Sparkles className="h-4 w-4" />
-            Generate Suggestions
+            {tf('Generate Suggestions')}
           </button>
         </div>
       </div>
@@ -506,7 +634,7 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
       <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
         <div className="flex items-center gap-2 text-primary">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm font-medium">Generating AI suggestions based on previous steps...</span>
+          <span className="text-sm font-medium">{tf('Generating AI suggestions based on previous steps...')}</span>
         </div>
       </div>
     );
@@ -519,14 +647,14 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Sparkles className="h-4 w-4" />
-            <span className="text-xs">No suggestions available. Try generating again or fill in more fields.</span>
+            <span className="text-xs">{tf('No suggestions available. Try generating again or fill in more fields.')}</span>
           </div>
           <button
             onClick={handleGenerateSuggestions}
             disabled={loading}
             className="px-3 py-1.5 text-xs bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
-            Retry
+            {tf('Retry')}
           </button>
         </div>
       </div>
@@ -544,7 +672,7 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
           >
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-sm">AI Suggestions</span>
+              <span className="font-semibold text-sm">{tf('AI Suggestions')}</span>
               <span className="text-xs text-muted-foreground">
                 ({suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''})
               </span>
@@ -562,7 +690,7 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
             title="Regenerate suggestions"
           >
             <Sparkles className="h-3 w-3" />
-            Regenerate
+            {tf('Regenerate')}
           </button>
           <button
             onClick={handleApplyAllSuggestions}
@@ -573,12 +701,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
             {applyingAll ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Applying...
+                {tf('Applying...')}
               </>
             ) : (
               <>
                 <Check className="h-3 w-3" />
-                Apply All
+                {tf('Apply All')}
               </>
             )}
           </button>
@@ -628,12 +756,12 @@ export const AISuggestions: React.FC<AISuggestionsProps> = ({
                         {isApplying ? (
                           <>
                             <Loader2 className="h-3 w-3 animate-spin" />
-                            Applying...
+                            {tf('Applying...')}
                           </>
                         ) : (
                           <>
                             <Check className="h-3 w-3" />
-                            Apply
+                            {tf('Apply')}
                           </>
                         )}
                       </button>
